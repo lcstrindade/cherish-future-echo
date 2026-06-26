@@ -29,6 +29,7 @@ export type Database = {
           search_tsv: unknown
           slug: string
           status: string
+          subcategory: string | null
           title: string
           updated_at: string
         }
@@ -46,6 +47,7 @@ export type Database = {
           search_tsv?: unknown
           slug: string
           status?: string
+          subcategory?: string | null
           title: string
           updated_at?: string
         }
@@ -63,6 +65,7 @@ export type Database = {
           search_tsv?: unknown
           slug?: string
           status?: string
+          subcategory?: string | null
           title?: string
           updated_at?: string
         }
