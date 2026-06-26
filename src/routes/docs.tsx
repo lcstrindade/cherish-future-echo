@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, useParams } from "@tanstack/react-router
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, BookOpen, FileText } from "lucide-react";
+import { Search, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   listPublishedArticles,
@@ -53,13 +53,18 @@ function DocsLayout() {
   });
 
   const grouped = useMemo(() => {
-    const map = new Map<string, ArticleListItem[]>();
+    const map = new Map<string, Map<string, ArticleListItem[]>>();
     for (const a of all) {
-      const key = a.category?.trim() || "Geral";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(a);
+      const topic = a.category?.trim() || "Geral";
+      const sub = a.subcategory?.trim() || "";
+      if (!map.has(topic)) map.set(topic, new Map());
+      const subs = map.get(topic)!;
+      if (!subs.has(sub)) subs.set(sub, []);
+      subs.get(sub)!.push(a);
     }
-    return Array.from(map.entries());
+    return Array.from(map.entries()).map(
+      ([topic, subs]) => [topic, Array.from(subs.entries())] as const,
+    );
   }, [all]);
 
   const showingSearch = debounced.length > 0;
@@ -70,7 +75,11 @@ function DocsLayout() {
       {/* Top bar */}
       <header className="h-14 border-b sticky top-0 z-40 bg-background/90 backdrop-blur flex items-center px-4 gap-4">
         <Link to="/" className="font-semibold flex items-center gap-2 shrink-0">
-          <BookOpen className="h-5 w-5 text-primary" /> Docs
+          <img
+            src="https://adm.bivvo.com.br/publicLogo?t=1778778948975"
+            alt="Logo"
+            className="h-7 w-auto"
+          />
         </Link>
         <div ref={boxRef} className="relative flex-1 max-w-xl ml-auto mr-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -149,21 +158,32 @@ function DocsLayout() {
             </div>
           ) : (
             <nav className="space-y-6">
-              {grouped.map(([cat, items]) => (
-                <div key={cat}>
+              {grouped.map(([topic, subs]) => (
+                <div key={topic}>
                   <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground px-2 mb-2">
-                    {cat}
+                    {topic}
                   </div>
-                  <ul className="space-y-0.5">
-                    {items.map((a) => (
-                      <SidebarLink
-                        key={a.id}
-                        slug={a.slug}
-                        title={a.title}
-                        active={a.slug === activeSlug}
-                      />
+                  <div className="space-y-3">
+                    {subs.map(([sub, items]) => (
+                      <div key={sub || "_"}>
+                        {sub && (
+                          <div className="text-[11px] font-medium text-muted-foreground/80 px-2 mb-1">
+                            {sub}
+                          </div>
+                        )}
+                        <ul className={"space-y-0.5 " + (sub ? "pl-2 border-l border-border/60 ml-2" : "")}>
+                          {items.map((a) => (
+                            <SidebarLink
+                              key={a.id}
+                              slug={a.slug}
+                              title={a.title}
+                              active={a.slug === activeSlug}
+                            />
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               ))}
               {grouped.length === 0 && (
