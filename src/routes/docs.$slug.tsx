@@ -7,6 +7,7 @@ import {
   type ArticleListItem,
 } from "@/lib/articles.functions";
 import { ArticleRenderer } from "@/components/ArticleRenderer";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export const Route = createFileRoute("/docs/$slug")({
   loader: async ({ params, context }) => {
@@ -57,14 +58,16 @@ function ArticlePage() {
   const idx = ordered.findIndex((a) => a.slug === article.slug);
   const prev = idx > 0 ? ordered[idx - 1] : null;
   const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+  const crumbs = [
+    { label: "Docs", to: "/docs" },
+    ...(article.category ? [{ label: article.category }] : []),
+    ...(article.subcategory ? [{ label: article.subcategory }] : []),
+    { label: article.title },
+  ];
   return (
-    <main className="max-w-3xl mx-auto px-8 py-12">
-      {article.category && (
-        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-          {article.category}
-        </div>
-      )}
-      <h1 className="text-4xl font-bold tracking-tight mb-3">{article.title}</h1>
+    <main className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-12">
+      <Breadcrumbs items={crumbs} />
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">{article.title}</h1>
       {article.excerpt && (
         <p className="text-lg text-muted-foreground mb-8">{article.excerpt}</p>
       )}
@@ -90,11 +93,16 @@ function ArticlePage() {
             <Link
               to="/docs/$slug"
               params={{ slug: prev.slug }}
-              className="group border rounded-lg p-4 hover:bg-accent/50 transition-colors sm:text-left"
+              className="group border rounded-lg p-4 hover:bg-accent/50 hover:border-foreground/20 transition-colors sm:text-left"
             >
               <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                 <ChevronLeft className="h-3 w-3" /> Anterior
               </div>
+              {prev.category && (
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                  {prev.category}
+                </div>
+              )}
               <div className="font-medium group-hover:text-foreground line-clamp-2">
                 {prev.title}
               </div>
@@ -104,11 +112,16 @@ function ArticlePage() {
             <Link
               to="/docs/$slug"
               params={{ slug: next.slug }}
-              className="group border rounded-lg p-4 hover:bg-accent/50 transition-colors sm:text-right"
+              className="group border rounded-lg p-4 hover:bg-accent/50 hover:border-foreground/20 transition-colors sm:text-right"
             >
               <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 sm:justify-end">
                 Próximo <ChevronRight className="h-3 w-3" />
               </div>
+              {next.category && (
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                  {next.category}
+                </div>
+              )}
               <div className="font-medium group-hover:text-foreground line-clamp-2">
                 {next.title}
               </div>

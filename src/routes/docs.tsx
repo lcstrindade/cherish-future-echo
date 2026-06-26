@@ -1,12 +1,18 @@
 import { createFileRoute, Link, Outlet, useParams } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, FileText } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useState } from "react";
+import { FileText, Menu, Search } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { SearchCommand } from "@/components/SearchCommand";
 import {
   listPublishedArticles,
-  searchArticles,
   type ArticleListItem,
 } from "@/lib/articles.functions";
 
@@ -27,30 +33,19 @@ function DocsLayout() {
   const params = useParams({ strict: false }) as { slug?: string };
   const activeSlug = params.slug;
 
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const [open, setOpen] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const search = useServerFn(searchArticles);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
-    const id = setTimeout(() => setDebounced(query.trim()), 300);
-    return () => clearTimeout(id);
-  }, [query]);
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
     }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  const { data: searchResults, isFetching } = useQuery({
-    queryKey: ["docs-search", debounced],
-    queryFn: () => search({ data: { query: debounced } }),
-    enabled: debounced.length > 0,
-  });
 
   const grouped = useMemo(() => {
     const map = new Map<string, Map<string, ArticleListItem[]>>();
@@ -67,132 +62,71 @@ function DocsLayout() {
     );
   }, [all]);
 
-  const showingSearch = debounced.length > 0;
-  const results = (searchResults ?? []) as ArticleListItem[];
+  const activeTopic = useMemo(() => {
+    const active = all.find((a) => a.slug === activeSlug);
+    return active?.category?.trim() || grouped[0]?.[0] || "";
+  }, [all, activeSlug, grouped]);
+
+  const sidebarNav = (
+    <SidebarNav
+      grouped={grouped}
+      activeSlug={activeSlug}
+      activeTopic={activeTopic}
+      onNavigate={() => setMobileNavOpen(false)}
+    />
+  );
 
   return (
     <div className="min-h-screen bg-background">
       {/* Top bar */}
-      <header className="h-14 border-b sticky top-0 z-40 bg-background/90 backdrop-blur flex items-center px-4 gap-4">
+      <header className="h-14 border-b sticky top-0 z-40 bg-background/80 backdrop-blur-md flex items-center px-3 sm:px-5 gap-3">
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Abrir navegação"
+              className="md:hidden h-9 w-9"
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-80 p-0 overflow-y-auto">
+            <SheetHeader className="px-4 py-3 border-b">
+              <SheetTitle>Documentação</SheetTitle>
+            </SheetHeader>
+            <div className="p-3">{sidebarNav}</div>
+          </SheetContent>
+        </Sheet>
+
         <Link to="/" className="font-semibold flex items-center gap-2 shrink-0">
           <img
             src="https://adm.bivvo.com.br/publicLogo?t=1778778948975"
-            alt="Logo"
+            alt="Bivvo"
             className="h-7 w-auto"
           />
         </Link>
-        <div ref={boxRef} className="relative flex-1 max-w-xl ml-auto mr-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => query && setOpen(true)}
-            placeholder="Buscar na documentação..."
-            className="pl-9 h-9 bg-muted/50 border-transparent focus-visible:bg-background"
-          />
-          {open && debounced.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-popover border rounded-md shadow-lg max-h-96 overflow-y-auto z-50">
-              {isFetching && (
-                <div className="px-4 py-3 text-sm text-muted-foreground">Buscando...</div>
-              )}
-              {!isFetching && results.length === 0 && (
-                <div className="px-4 py-3 text-sm text-muted-foreground">
-                  Nenhum resultado para "{debounced}".
-                </div>
-              )}
-              {!isFetching && results.length > 0 && (
-                <ul className="py-1">
-                  {results.map((a) => (
-                    <li key={a.id}>
-                      <Link
-                        to="/docs/$slug"
-                        params={{ slug: a.slug }}
-                        onClick={() => {
-                          setOpen(false);
-                          setQuery("");
-                        }}
-                        className="block px-4 py-2.5 hover:bg-accent transition-colors"
-                      >
-                        <div className="text-sm font-medium">{a.title}</div>
-                        {a.excerpt && (
-                          <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                            {a.excerpt}
-                          </div>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
+
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className="flex-1 max-w-xl ml-auto mr-auto h-9 px-3 rounded-md border bg-muted/40 hover:bg-muted/60 transition-colors flex items-center gap-2 text-sm text-muted-foreground"
+          aria-label="Buscar na documentação"
+        >
+          <Search className="h-4 w-4" />
+          <span className="flex-1 text-left">Buscar...</span>
+          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+            ⌘K
+          </kbd>
+        </button>
+
+        <ThemeToggle />
       </header>
 
       <div className="flex">
         {/* Sidebar */}
         <aside className="w-72 shrink-0 border-r min-h-[calc(100vh-3.5rem)] sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto px-3 py-6 hidden md:block">
-          {showingSearch ? (
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground px-2 mb-2">
-                {isFetching ? "Buscando..." : `${results.length} resultados`}
-              </div>
-              <ul className="space-y-0.5">
-                {results.map((a) => (
-                  <SidebarLink
-                    key={a.id}
-                    slug={a.slug}
-                    title={a.title}
-                    active={a.slug === activeSlug}
-                  />
-                ))}
-                {!isFetching && results.length === 0 && (
-                  <li className="text-sm text-muted-foreground px-2 py-3">
-                    Nada encontrado.
-                  </li>
-                )}
-              </ul>
-            </div>
-          ) : (
-            <nav className="space-y-6">
-              {grouped.map(([topic, subs]) => (
-                <div key={topic}>
-                  <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground px-2 mb-2">
-                    {topic}
-                  </div>
-                  <div className="space-y-3">
-                    {subs.map(([sub, items]) => (
-                      <div key={sub || "_"}>
-                        {sub && (
-                          <div className="text-[11px] font-medium text-muted-foreground/80 px-2 mb-1">
-                            {sub}
-                          </div>
-                        )}
-                        <ul className={"space-y-0.5 " + (sub ? "pl-2 border-l border-border/60 ml-2" : "")}>
-                          {items.map((a) => (
-                            <SidebarLink
-                              key={a.id}
-                              slug={a.slug}
-                              title={a.title}
-                              active={a.slug === activeSlug}
-                            />
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {grouped.length === 0 && (
-                <div className="text-sm text-muted-foreground px-2 flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Nenhum artigo publicado.
-                </div>
-              )}
-            </nav>
-          )}
+          {sidebarNav}
         </aside>
 
         {/* Main */}
@@ -200,7 +134,72 @@ function DocsLayout() {
           <Outlet />
         </div>
       </div>
+
+      <SearchCommand
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        fallback={all}
+      />
     </div>
+  );
+}
+
+function SidebarNav({
+  grouped,
+  activeSlug,
+  activeTopic,
+  onNavigate,
+}: {
+  grouped: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, ArticleListItem[]]>]>;
+  activeSlug: string | undefined;
+  activeTopic: string;
+  onNavigate: () => void;
+}) {
+  if (grouped.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground px-2 flex items-center gap-2">
+        <FileText className="h-4 w-4" /> Nenhum artigo publicado.
+      </div>
+    );
+  }
+  return (
+    <Accordion
+      type="multiple"
+      defaultValue={[activeTopic]}
+      className="space-y-1"
+    >
+      {grouped.map(([topic, subs]) => (
+        <AccordionItem key={topic} value={topic} className="border-none">
+          <AccordionTrigger className="px-2 py-2 text-xs uppercase tracking-wider font-semibold text-muted-foreground hover:no-underline hover:text-foreground">
+            {topic}
+          </AccordionTrigger>
+          <AccordionContent className="pb-2">
+            <div className="space-y-3">
+              {subs.map(([sub, items]) => (
+                <div key={sub || "_"}>
+                  {sub && (
+                    <div className="text-[11px] font-medium text-muted-foreground/80 px-2 mb-1">
+                      {sub}
+                    </div>
+                  )}
+                  <ul className={"space-y-0.5 " + (sub ? "pl-3 border-l border-border/60 ml-2" : "")}>
+                    {items.map((a) => (
+                      <SidebarLink
+                        key={a.id}
+                        slug={a.slug}
+                        title={a.title}
+                        active={a.slug === activeSlug}
+                        onClick={onNavigate}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
   );
 }
 
@@ -208,16 +207,25 @@ function SidebarLink({
   slug,
   title,
   active,
+  onClick,
 }: {
   slug: string;
   title: string;
   active: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <li>
+    <li className="relative">
+      {active && (
+        <span
+          aria-hidden
+          className="absolute left-[-13px] top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary"
+        />
+      )}
       <Link
         to="/docs/$slug"
         params={{ slug }}
+        onClick={onClick}
         className={
           "block px-2 py-1.5 rounded-md text-sm transition-colors " +
           (active
