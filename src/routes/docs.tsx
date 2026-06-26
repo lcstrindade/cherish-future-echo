@@ -119,6 +119,13 @@ function DocsLayout() {
           </kbd>
         </button>
 
+        <a
+          href="https://app.bivvo.com.br"
+          className="shrink-0 h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium flex items-center hover:opacity-90"
+        >
+          Fazer login
+        </a>
+
       </header>
 
       <div className="flex">
