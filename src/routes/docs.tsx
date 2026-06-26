@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useParams } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, BookOpen, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,12 +29,22 @@ function DocsLayout() {
 
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
   const search = useServerFn(searchArticles);
 
   useEffect(() => {
     const id = setTimeout(() => setDebounced(query.trim()), 300);
     return () => clearTimeout(id);
   }, [query]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   const { data: searchResults, isFetching } = useQuery({
     queryKey: ["docs-search", debounced],
@@ -62,14 +72,54 @@ function DocsLayout() {
         <Link to="/" className="font-semibold flex items-center gap-2 shrink-0">
           <BookOpen className="h-5 w-5 text-primary" /> Docs
         </Link>
-        <div className="relative flex-1 max-w-xl ml-auto mr-auto">
+        <div ref={boxRef} className="relative flex-1 max-w-xl ml-auto mr-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => query && setOpen(true)}
             placeholder="Buscar na documentação..."
             className="pl-9 h-9 bg-muted/50 border-transparent focus-visible:bg-background"
           />
+          {open && debounced.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-2 bg-popover border rounded-md shadow-lg max-h-96 overflow-y-auto z-50">
+              {isFetching && (
+                <div className="px-4 py-3 text-sm text-muted-foreground">Buscando...</div>
+              )}
+              {!isFetching && results.length === 0 && (
+                <div className="px-4 py-3 text-sm text-muted-foreground">
+                  Nenhum resultado para "{debounced}".
+                </div>
+              )}
+              {!isFetching && results.length > 0 && (
+                <ul className="py-1">
+                  {results.map((a) => (
+                    <li key={a.id}>
+                      <Link
+                        to="/docs/$slug"
+                        params={{ slug: a.slug }}
+                        onClick={() => {
+                          setOpen(false);
+                          setQuery("");
+                        }}
+                        className="block px-4 py-2.5 hover:bg-accent transition-colors"
+                      >
+                        <div className="text-sm font-medium">{a.title}</div>
+                        {a.excerpt && (
+                          <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                            {a.excerpt}
+                          </div>
+                        )}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
