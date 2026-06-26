@@ -7,10 +7,10 @@ import { BookOpen, Search, Sparkles } from "lucide-react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Central de Documentação" },
-      { name: "description", content: "Documentação do seu SaaS com busca inteligente por contexto." },
-      { property: "og:title", content: "Central de Documentação" },
-      { property: "og:description", content: "Documentação do seu SaaS com busca inteligente por contexto." },
+      { title: "Central de Ajuda Bivvo" },
+      { name: "description", content: "Documentação oficial do Bivvo: WhatsApp, telefonia, Instagram, Facebook, webchat, disparos em massa e automações com IA." },
+      { property: "og:title", content: "Central de Ajuda Bivvo" },
+      { property: "og:description", content: "Documentação oficial do Bivvo: WhatsApp, telefonia, Instagram, Facebook, webchat, disparos em massa e automações com IA." },
     ],
   }),
   component: Index,
@@ -25,10 +25,10 @@ function Index() {
           <Sparkles className="h-3 w-3" /> Busca inteligente com IA
         </div>
         <h1 className="text-5xl font-bold tracking-tight mb-4">
-          Tudo o que você precisa saber sobre o produto
+          Aprenda a usar o Bivvo do seu jeito
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-          Guias, tutoriais e referências sobre cada funcionalidade. Pesquise em linguagem natural — entendemos o contexto.
+          Guias, tutoriais e referências para WhatsApp, telefonia, Instagram, Facebook, webchat, disparos em massa e automações com IA. Pesquise em linguagem natural — entendemos o contexto.
         </p>
         <div className="flex justify-center gap-3">
           <Button asChild size="lg">
