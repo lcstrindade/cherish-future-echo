@@ -28,7 +28,7 @@ function Index() {
           Aprenda a usar o Bivvo do seu jeito
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-          Guias, tutoriais e referências para WhatsApp, telefonia, Instagram, Facebook, webchat, disparos em massa e automações com IA. Pesquise em linguagem natural — entendemos o contexto.
+          Guias, tutoriais e referências para WhatsApp, telefonia, Instagram, Facebook, webchat, disparos em massa e automações com IA.
         </p>
         <div className="flex justify-center gap-3">
           <Button asChild size="lg">
