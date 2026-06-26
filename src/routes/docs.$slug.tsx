@@ -1,5 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { getArticleBySlug } from "@/lib/articles.functions";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  getArticleBySlug,
+  listPublishedArticles,
+  type ArticleListItem,
+} from "@/lib/articles.functions";
 import { ArticleRenderer } from "@/components/ArticleRenderer";
 
 export const Route = createFileRoute("/docs/$slug")({
@@ -43,6 +49,14 @@ export const Route = createFileRoute("/docs/$slug")({
 
 function ArticlePage() {
   const { article } = Route.useLoaderData();
+  const { data: all = [] } = useSuspenseQuery({
+    queryKey: ["docs-sidebar"],
+    queryFn: () => listPublishedArticles(),
+  });
+  const ordered = orderArticles(all);
+  const idx = ordered.findIndex((a) => a.slug === article.slug);
+  const prev = idx > 0 ? ordered[idx - 1] : null;
+  const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
   return (
     <main className="max-w-3xl mx-auto px-8 py-12">
       {article.category && (
@@ -70,6 +84,53 @@ function ArticlePage() {
         />
       )}
       <ArticleRenderer content={article.content} />
+      {(prev || next) && (
+        <nav className="mt-16 pt-8 border-t grid gap-3 sm:grid-cols-2">
+          {prev ? (
+            <Link
+              to="/docs/$slug"
+              params={{ slug: prev.slug }}
+              className="group border rounded-lg p-4 hover:bg-accent/50 transition-colors sm:text-left"
+            >
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                <ChevronLeft className="h-3 w-3" /> Anterior
+              </div>
+              <div className="font-medium group-hover:text-foreground line-clamp-2">
+                {prev.title}
+              </div>
+            </Link>
+          ) : <div className="hidden sm:block" />}
+          {next ? (
+            <Link
+              to="/docs/$slug"
+              params={{ slug: next.slug }}
+              className="group border rounded-lg p-4 hover:bg-accent/50 transition-colors sm:text-right"
+            >
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 sm:justify-end">
+                Próximo <ChevronRight className="h-3 w-3" />
+              </div>
+              <div className="font-medium group-hover:text-foreground line-clamp-2">
+                {next.title}
+              </div>
+            </Link>
+          ) : <div className="hidden sm:block" />}
+        </nav>
+      )}
     </main>
   );
+}
+
+function orderArticles(all: ArticleListItem[]): ArticleListItem[] {
+  const map = new Map<string, Map<string, ArticleListItem[]>>();
+  for (const a of all) {
+    const topic = a.category?.trim() || "Geral";
+    const sub = a.subcategory?.trim() || "";
+    if (!map.has(topic)) map.set(topic, new Map());
+    const subs = map.get(topic)!;
+    if (!subs.has(sub)) subs.set(sub, []);
+    subs.get(sub)!.push(a);
+  }
+  const out: ArticleListItem[] = [];
+  for (const [, subs] of map) for (const [, items] of subs) for (const a of items) out.push(a);
+  return out;
 }
