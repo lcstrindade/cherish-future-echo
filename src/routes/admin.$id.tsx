@@ -125,16 +125,18 @@ function AdminEditor() {
           <Label>Título</Label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
-        <div>
-          <Label>Slug</Label>
-          <Input
-            value={slug}
-            onChange={(e) => {
-              setSlug(e.target.value);
-              setSlugTouched(true);
-            }}
-          />
-        </div>
+        {!isNew && (
+          <div>
+            <Label>Slug</Label>
+            <Input
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value);
+                setSlugTouched(true);
+              }}
+            />
+          </div>
+        )}
         <div>
           <Label>Tópico</Label>
           <Input value={category} onChange={(e) => setCategory(e.target.value)} />
