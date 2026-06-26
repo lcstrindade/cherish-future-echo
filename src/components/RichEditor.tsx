@@ -12,8 +12,7 @@ import {
   Youtube as YoutubeIcon, Undo, Redo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { createMediaSignedUrl } from "@/lib/articles.functions";
+import { uploadArticleMedia } from "@/lib/articles.functions";
 import { toast } from "sonner";
 
 type Props = {
@@ -24,7 +23,7 @@ type Props = {
 export function RichEditor({ value, onChange }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const signUrl = useServerFn(createMediaSignedUrl);
+  const uploadMedia = useServerFn(uploadArticleMedia);
 
   const editor = useEditor({
     extensions: [
@@ -50,17 +49,28 @@ export function RichEditor({ value, onChange }: Props) {
   async function handleImageUpload(file: File) {
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() ?? "bin";
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("article-media")
-        .upload(path, file, { contentType: file.type, upsert: false });
-      if (error) throw error;
-      const { url } = await signUrl({ data: { path } });
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      const CHUNK = 8192;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(
+          null,
+          Array.from(bytes.subarray(i, i + CHUNK)),
+        );
+      }
+      const dataBase64 = btoa(binary);
+      const { url } = await uploadMedia({
+        data: {
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+          dataBase64,
+        },
+      });
       editor!.chain().focus().setImage({ src: url }).run();
     } catch (e) {
       console.error(e);
-      toast.error("Falha ao enviar imagem");
+      toast.error("Falha ao enviar imagem: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setUploading(false);
     }

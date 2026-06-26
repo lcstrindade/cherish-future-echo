@@ -198,3 +198,28 @@ export const createMediaSignedUrl = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { url: signed.signedUrl };
   });
+
+export const uploadArticleMedia = createServerFn({ method: "POST" })
+  .middleware([requireAdminSession])
+  .inputValidator((d: unknown) =>
+    z.object({
+      filename: z.string().min(1).max(200),
+      contentType: z.string().min(1).max(100),
+      dataBase64: z.string().min(1),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ext = (data.filename.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const path = `${crypto.randomUUID()}.${ext || "bin"}`;
+    const bytes = Buffer.from(data.dataBase64, "base64");
+    const { error } = await supabaseAdmin.storage
+      .from("article-media")
+      .upload(path, bytes, { contentType: data.contentType, upsert: false });
+    if (error) throw new Error(error.message);
+    const { data: signed, error: signErr } = await supabaseAdmin.storage
+      .from("article-media")
+      .createSignedUrl(path, 60 * 60 * 24 * 365);
+    if (signErr) throw new Error(signErr.message);
+    return { url: signed.signedUrl, path };
+  });
