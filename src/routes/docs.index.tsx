@@ -1,10 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { Search, FileText } from "lucide-react";
-import { searchArticles, type ArticleListItem } from "@/lib/articles.functions";
-import { Input } from "@/components/ui/input";
+import { BookOpen, Search, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/docs/")({
   head: () => ({
@@ -13,74 +8,42 @@ export const Route = createFileRoute("/docs/")({
       { name: "description", content: "Pesquise nossa documentação completa." },
     ],
   }),
-  component: DocsIndex,
+  component: DocsHome,
 });
 
-function DocsIndex() {
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const search = useServerFn(searchArticles);
-
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(query), 350);
-    return () => clearTimeout(id);
-  }, [query]);
-
-  const { data, isFetching } = useQuery({
-    queryKey: ["articles-search", debounced],
-    queryFn: () => search({ data: { query: debounced } }),
-  });
-
-  const items = (data ?? []) as ArticleListItem[];
-
+function DocsHome() {
   return (
-    <main className="max-w-4xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold mb-2">Documentação</h1>
-      <p className="text-muted-foreground mb-6">
-        Pesquise em linguagem natural — entendemos o contexto.
-      </p>
-      <div className="relative mb-8">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Como faço para..."
-          className="pl-9 h-12"
-        />
+    <main className="max-w-3xl mx-auto px-8 py-16">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground mb-3">
+        <BookOpen className="h-3.5 w-3.5" /> Documentação
       </div>
-      {isFetching && (
-        <div className="text-sm text-muted-foreground mb-4">Buscando...</div>
-      )}
-      {items.length === 0 && !isFetching ? (
-        <div className="text-center py-16 border rounded-lg">
-          <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">Nenhum artigo encontrado.</p>
+      <h1 className="text-4xl font-bold tracking-tight mb-4">
+        Bem-vindo à documentação
+      </h1>
+      <p className="text-lg text-muted-foreground mb-10">
+        Use a navegação à esquerda para explorar os artigos, ou a busca no topo
+        — entendemos contexto e linguagem natural.
+      </p>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Link
+          to="/docs"
+          className="border rounded-lg p-5 hover:bg-accent/50 transition-colors"
+        >
+          <Search className="h-5 w-5 text-primary mb-2" />
+          <div className="font-semibold mb-1">Busca semântica</div>
+          <p className="text-sm text-muted-foreground">
+            Pergunte em linguagem natural — encontramos o artigo certo.
+          </p>
+        </Link>
+        <div className="border rounded-lg p-5">
+          <Sparkles className="h-5 w-5 text-primary mb-2" />
+          <div className="font-semibold mb-1">Sempre atualizado</div>
+          <p className="text-sm text-muted-foreground">
+            Conteúdo mantido pela equipe, com novos artigos publicados
+            continuamente.
+          </p>
         </div>
-      ) : (
-        <ul className="space-y-3">
-          {items.map((a) => (
-            <li key={a.id}>
-              <Link
-                to="/docs/$slug"
-                params={{ slug: a.slug }}
-                className="block p-4 border rounded-lg hover:bg-accent transition-colors"
-              >
-                {a.category && (
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-                    {a.category}
-                  </div>
-                )}
-                <div className="font-semibold">{a.title}</div>
-                {a.excerpt && (
-                  <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                    {a.excerpt}
-                  </div>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      </div>
     </main>
   );
 }
