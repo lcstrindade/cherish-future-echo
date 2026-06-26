@@ -1,5 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   getArticleBySlug,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/articles.functions";
 import { ArticleRenderer } from "@/components/ArticleRenderer";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { ArticleToc } from "@/components/ArticleToc";
 
 export const Route = createFileRoute("/docs/$slug")({
   loader: async ({ params, context }) => {
@@ -50,6 +52,7 @@ export const Route = createFileRoute("/docs/$slug")({
 
 function ArticlePage() {
   const { article } = Route.useLoaderData();
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const { data: all = [] } = useSuspenseQuery({
     queryKey: ["docs-sidebar"],
     queryFn: () => listPublishedArticles(),
@@ -65,29 +68,32 @@ function ArticlePage() {
     { label: article.title },
   ];
   return (
-    <main className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-12">
-      <Breadcrumbs items={crumbs} />
-      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">{article.title}</h1>
-      {article.excerpt && (
-        <p className="text-lg text-muted-foreground mb-8">{article.excerpt}</p>
-      )}
-      <div className="text-xs text-muted-foreground mb-8">
-        Atualizado em{" "}
-        {new Date(article.updated_at ?? article.published_at ?? Date.now()).toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        })}
-      </div>
-      {article.cover_image_url && (
-        <img
-          src={article.cover_image_url}
-          alt=""
-          className="rounded-lg mb-8 w-full border"
-        />
-      )}
-      <ArticleRenderer content={article.content} />
-      {(prev || next) && (
+    <div className="mx-auto w-full max-w-6xl px-6 sm:px-8 py-10 sm:py-12 flex gap-10">
+      <main className="min-w-0 flex-1 max-w-3xl">
+        <Breadcrumbs items={crumbs} />
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">{article.title}</h1>
+        {article.excerpt && (
+          <p className="text-lg text-muted-foreground mb-8">{article.excerpt}</p>
+        )}
+        <div className="text-xs text-muted-foreground mb-8">
+          Atualizado em{" "}
+          {new Date(article.updated_at ?? article.published_at ?? Date.now()).toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          })}
+        </div>
+        {article.cover_image_url && (
+          <img
+            src={article.cover_image_url}
+            alt=""
+            className="rounded-lg mb-8 w-full border"
+          />
+        )}
+        <div ref={contentRef} key={article.slug}>
+          <ArticleRenderer content={article.content} />
+        </div>
+        {(prev || next) && (
         <nav className="mt-16 pt-8 border-t grid gap-3 sm:grid-cols-2">
           {prev ? (
             <Link
@@ -128,8 +134,14 @@ function ArticlePage() {
             </Link>
           ) : <div className="hidden sm:block" />}
         </nav>
-      )}
-    </main>
+        )}
+      </main>
+      <aside className="hidden xl:block w-56 shrink-0">
+        <div className="sticky top-20">
+          <ArticleToc containerRef={contentRef} />
+        </div>
+      </aside>
+    </div>
   );
 }
 

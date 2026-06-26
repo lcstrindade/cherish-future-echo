@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { SearchCommand } from "@/components/SearchCommand";
 import {
   listPublishedArticles,
@@ -120,7 +119,6 @@ function DocsLayout() {
           </kbd>
         </button>
 
-        <ThemeToggle />
       </header>
 
       <div className="flex">

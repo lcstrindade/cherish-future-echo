@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function SiteNav() {
   return (
@@ -20,7 +19,6 @@ export function SiteNav() {
           >
             Documentação
           </Link>
-          <ThemeToggle />
         </nav>
       </div>
     </header>

@@ -15,7 +15,7 @@ export function ArticleRenderer({ content }: { content: unknown }) {
     ],
     content: (content as object) ?? "",
     editorProps: {
-      attributes: { class: "prose prose-neutral dark:prose-invert max-w-none" },
+      attributes: { class: "prose prose-neutral max-w-none" },
     },
     immediatelyRender: false,
   });
