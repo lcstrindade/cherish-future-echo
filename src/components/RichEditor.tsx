@@ -24,6 +24,7 @@ export function RichEditor({ value, onChange }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const uploadMedia = useServerFn(uploadArticleMedia);
+  const uploadAtRef = useRef<(file: File, pos?: number) => void>(() => {});
 
   const editor = useEditor({
     extensions: [
@@ -40,13 +41,33 @@ export function RichEditor({ value, onChange }: Props) {
         class:
           "prose prose-neutral dark:prose-invert max-w-none min-h-[400px] focus:outline-none p-4",
       },
+      handleDrop: (view, event, _slice, moved) => {
+        if (moved) return false;
+        const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+          f.type.startsWith("image/"),
+        );
+        if (files.length === 0) return false;
+        event.preventDefault();
+        const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        const pos = coords?.pos;
+        files.forEach((f) => uploadAtRef.current(f, pos));
+        return true;
+      },
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+          f.type.startsWith("image/"),
+        );
+        if (files.length === 0) return false;
+        event.preventDefault();
+        files.forEach((f) => uploadAtRef.current(f));
+        return true;
+      },
     },
     immediatelyRender: false,
   });
 
-  if (!editor) return null;
-
-  async function handleImageUpload(file: File) {
+  async function handleImageUpload(file: File, pos?: number) {
+    if (!editor) return;
     setUploading(true);
     try {
       const buf = await file.arrayBuffer();
@@ -67,7 +88,10 @@ export function RichEditor({ value, onChange }: Props) {
           dataBase64,
         },
       });
-      editor!.chain().focus().setImage({ src: url }).run();
+      const chain = editor.chain().focus();
+      if (typeof pos === "number") chain.insertContentAt(pos, { type: "image", attrs: { src: url } });
+      else chain.setImage({ src: url });
+      chain.run();
     } catch (e) {
       console.error(e);
       toast.error("Falha ao enviar imagem: " + (e instanceof Error ? e.message : String(e)));
@@ -75,6 +99,10 @@ export function RichEditor({ value, onChange }: Props) {
       setUploading(false);
     }
   }
+
+  uploadAtRef.current = handleImageUpload;
+
+  if (!editor) return null;
 
   function addYouTube() {
     const url = window.prompt("URL do vídeo (YouTube)");
