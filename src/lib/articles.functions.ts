@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Database } from "@/integrations/supabase/types";
 
 function publicClient() {
   return createClient(
@@ -143,7 +142,7 @@ export const getArticleByIdAdmin = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { data: row, error } = await context.supabase
       .from("articles")
-      .select("*")
+      .select("id, slug, title, excerpt, content, content_text, cover_image_url, category, status, published_at, updated_at")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -165,9 +164,7 @@ export const upsertArticle = createServerFn({ method: "POST" })
       console.error("embed article failed", e);
     }
 
-    const payload: Database["public"]["Tables"] extends Record<string, never>
-      ? Record<string, unknown>
-      : Record<string, unknown> = {
+    const payload = {
       title: data.title,
       slug: data.slug,
       excerpt: data.excerpt ?? null,
@@ -180,7 +177,7 @@ export const upsertArticle = createServerFn({ method: "POST" })
       embedding: embedding && embedding.length ? (embedding as unknown as string) : null,
       published_at:
         data.status === "published" ? new Date().toISOString() : null,
-    };
+    } as never;
 
     if (data.id) {
       const { data: row, error } = await context.supabase
