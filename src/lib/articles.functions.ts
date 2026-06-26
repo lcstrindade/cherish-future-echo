@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdminSession } from "./admin-auth.functions";
 
 function publicClient() {
   return createClient(
@@ -100,34 +100,11 @@ const ArticleInput = z.object({
   status: z.enum(["draft", "published"]),
 });
 
-async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", ctx.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: admin role required");
-}
-
-export const isCurrentUserAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    return { isAdmin: !!data, userId: context.userId };
-  });
-
 export const listAllArticlesAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertAdmin(context);
-    const { data, error } = await context.supabase
+  .middleware([requireAdminSession])
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
       .from("articles")
       .select("id, slug, title, status, updated_at, published_at, category")
       .order("updated_at", { ascending: false });
@@ -136,11 +113,11 @@ export const listAllArticlesAdmin = createServerFn({ method: "GET" })
   });
 
 export const getArticleByIdAdmin = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminSession])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-    const { data: row, error } = await context.supabase
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
       .from("articles")
       .select("id, slug, title, excerpt, content, content_text, cover_image_url, category, status, published_at, updated_at")
       .eq("id", data.id)
@@ -150,11 +127,10 @@ export const getArticleByIdAdmin = createServerFn({ method: "POST" })
   });
 
 export const upsertArticle = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminSession])
   .inputValidator((d: unknown) => ArticleInput.parse(d))
-  .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let embedding: number[] | null = null;
     const textForEmbedding = `${data.title}\n\n${data.excerpt ?? ""}\n\n${data.content_text}`.trim();
     try {
@@ -173,14 +149,14 @@ export const upsertArticle = createServerFn({ method: "POST" })
       content: data.content ?? {},
       content_text: data.content_text,
       status: data.status,
-      author_id: context.userId,
+      author_id: null,
       embedding: embedding && embedding.length ? (embedding as unknown as string) : null,
       published_at:
         data.status === "published" ? new Date().toISOString() : null,
     } as never;
 
     if (data.id) {
-      const { data: row, error } = await context.supabase
+      const { data: row, error } = await supabaseAdmin
         .from("articles")
         .update(payload)
         .eq("id", data.id)
@@ -189,7 +165,7 @@ export const upsertArticle = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       return row;
     }
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await supabaseAdmin
       .from("articles")
       .insert(payload)
       .select("id, slug")
@@ -199,21 +175,21 @@ export const upsertArticle = createServerFn({ method: "POST" })
   });
 
 export const deleteArticle = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminSession])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-    const { error } = await context.supabase.from("articles").delete().eq("id", data.id);
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("articles").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 export const createMediaSignedUrl = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminSession])
   .inputValidator((d: unknown) => z.object({ path: z.string().min(1) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-    const { data: signed, error } = await context.supabase.storage
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
       .from("article-media")
       .createSignedUrl(data.path, 60 * 60 * 24 * 365);
     if (error) throw new Error(error.message);
