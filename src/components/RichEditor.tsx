@@ -69,7 +69,7 @@ export function RichEditor({ value, onChange }: Props) {
   function addYouTube() {
     const url = window.prompt("URL do vídeo (YouTube)");
     if (!url) return;
-    editor!.commands.setYoutubeVideo({ src: url });
+    editor!.chain().focus().setYoutubeVideo({ src: url }).run();
   }
 
   function addLink() {

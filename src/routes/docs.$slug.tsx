@@ -54,6 +54,14 @@ function ArticlePage() {
       {article.excerpt && (
         <p className="text-lg text-muted-foreground mb-8">{article.excerpt}</p>
       )}
+      <div className="text-xs text-muted-foreground mb-8">
+        Atualizado em{" "}
+        {new Date(article.updated_at ?? article.published_at ?? Date.now()).toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })}
+      </div>
       {article.cover_image_url && (
         <img
           src={article.cover_image_url}
