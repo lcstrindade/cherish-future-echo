@@ -34,6 +34,7 @@ function AdminEditor() {
   const [slug, setSlug] = useState("");
   const [excerpt, setExcerpt] = useState("");
   const [category, setCategory] = useState("");
+  const [subcategory, setSubcategory] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [content, setContent] = useState<unknown>("");
   const [contentText, setContentText] = useState("");
@@ -47,13 +48,14 @@ function AdminEditor() {
       if (!row) return;
       const r = row as {
         title: string; slug: string; excerpt: string | null;
-        category: string | null; cover_image_url: string | null;
+        category: string | null; subcategory: string | null; cover_image_url: string | null;
         content: unknown; content_text: string | null; status: "draft" | "published";
       };
       setTitle(r.title);
       setSlug(r.slug);
       setExcerpt(r.excerpt ?? "");
       setCategory(r.category ?? "");
+      setSubcategory(r.subcategory ?? "");
       setCoverUrl(r.cover_image_url ?? "");
       setContent(r.content);
       setContentText(r.content_text ?? "");
@@ -76,6 +78,7 @@ function AdminEditor() {
           slug,
           excerpt: excerpt || null,
           category: category || null,
+          subcategory: subcategory || null,
           cover_image_url: coverUrl || null,
           content,
           content_text: contentText,
@@ -133,8 +136,12 @@ function AdminEditor() {
           />
         </div>
         <div>
-          <Label>Categoria</Label>
+          <Label>Tópico</Label>
           <Input value={category} onChange={(e) => setCategory(e.target.value)} />
+        </div>
+        <div>
+          <Label>Subtópico</Label>
+          <Input value={subcategory} onChange={(e) => setSubcategory(e.target.value)} />
         </div>
         <div>
           <Label>URL da capa</Label>
