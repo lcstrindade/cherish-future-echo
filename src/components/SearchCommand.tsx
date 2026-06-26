@@ -4,13 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Search } from "lucide-react";
 import {
-  CommandDialog,
+  Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   searchArticles,
   type ArticleListItem,
@@ -64,8 +65,10 @@ export function SearchCommand({ open, onOpenChange, fallback = [] }: Props) {
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false}>
-      <CommandInput
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="overflow-hidden p-0 max-w-2xl">
+        <Command shouldFilter={false} className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground">
+        <CommandInput
         placeholder="Buscar artigos, tutoriais e guias..."
         value={query}
         onValueChange={setQuery}
@@ -115,6 +118,8 @@ export function SearchCommand({ open, onOpenChange, fallback = [] }: Props) {
         <span>Navegue com ↑ ↓ · Enter abre · Esc fecha</span>
         <span className="hidden sm:inline">Bivvo Docs</span>
       </div>
-    </CommandDialog>
+        </Command>
+      </DialogContent>
+    </Dialog>
   );
 }
