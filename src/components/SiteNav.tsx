@@ -19,6 +19,12 @@ export function SiteNav() {
           >
             Documentação
           </Link>
+          <a
+            href="https://app.bivvo.com.br"
+            className="px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90"
+          >
+            Fazer login
+          </a>
         </nav>
       </div>
     </header>
