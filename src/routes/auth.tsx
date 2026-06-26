@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { BookOpen } from "lucide-react";
+import { adminLogin } from "@/lib/admin-auth.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Entrar" }] }),
@@ -14,33 +15,20 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
+  const login = useServerFn(adminLogin);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/admin" });
-    });
-  }, [navigate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        toast.success("Conta criada! Você já pode fazer login.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+      const res = await login({ data: { username, password } });
+      if (res.ok) {
         navigate({ to: "/admin" });
+      } else {
+        toast.error("Usuário ou senha inválidos");
       }
     } catch (err) {
       toast.error((err as Error).message);
@@ -56,21 +44,20 @@ function AuthPage() {
           <BookOpen className="h-5 w-5" /> Docs
         </Link>
         <div className="border rounded-lg p-6 bg-card">
-          <h1 className="text-2xl font-bold mb-1">
-            {mode === "signin" ? "Entrar" : "Criar conta"}
-          </h1>
+          <h1 className="text-2xl font-bold mb-1">Entrar</h1>
           <p className="text-sm text-muted-foreground mb-6">
-            Acesse o painel admin para publicar artigos.
+            Acesso restrito ao admin.
           </p>
           <form onSubmit={submit} className="space-y-3">
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Usuário</Label>
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
+                autoComplete="username"
               />
             </div>
             <div>
@@ -81,20 +68,13 @@ function AuthPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                autoComplete="current-password"
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "..." : mode === "signin" ? "Entrar" : "Criar conta"}
+              {loading ? "..." : "Entrar"}
             </Button>
           </form>
-          <button
-            type="button"
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="text-sm text-muted-foreground hover:text-foreground mt-4 w-full text-center"
-          >
-            {mode === "signin" ? "Não tem conta? Criar uma" : "Já tem conta? Entrar"}
-          </button>
         </div>
       </div>
     </div>
