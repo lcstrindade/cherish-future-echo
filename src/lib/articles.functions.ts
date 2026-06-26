@@ -17,6 +17,7 @@ export type ArticleListItem = {
   title: string;
   excerpt: string | null;
   category: string | null;
+  subcategory: string | null;
   cover_image_url: string | null;
   published_at: string | null;
 };
@@ -26,7 +27,7 @@ export const listPublishedArticles = createServerFn({ method: "GET" }).handler(
     const sb = publicClient();
     const { data, error } = await sb
       .from("articles")
-      .select("id, slug, title, excerpt, category, cover_image_url, published_at")
+      .select("id, slug, title, excerpt, category, subcategory, cover_image_url, published_at")
       .eq("status", "published")
       .order("published_at", { ascending: false })
       .limit(100);
@@ -41,7 +42,7 @@ export const getArticleBySlug = createServerFn({ method: "GET" })
     const sb = publicClient();
     const { data: row, error } = await sb
       .from("articles")
-      .select("id, slug, title, excerpt, content, cover_image_url, category, published_at, updated_at")
+      .select("id, slug, title, excerpt, content, cover_image_url, category, subcategory, published_at, updated_at")
       .eq("slug", data.slug)
       .eq("status", "published")
       .maybeSingle();
@@ -59,7 +60,7 @@ export const searchArticles = createServerFn({ method: "POST" })
     if (!q) {
       const { data: list, error } = await sb
         .from("articles")
-        .select("id, slug, title, excerpt, category, cover_image_url, published_at")
+        .select("id, slug, title, excerpt, category, subcategory, cover_image_url, published_at")
         .eq("status", "published")
         .order("published_at", { ascending: false })
         .limit(20);
@@ -94,6 +95,7 @@ const ArticleInput = z.object({
   slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/, "slug inválido"),
   excerpt: z.string().max(500).nullable().optional(),
   category: z.string().max(80).nullable().optional(),
+  subcategory: z.string().max(80).nullable().optional(),
   cover_image_url: z.string().url().nullable().optional(),
   content: z.any(),
   content_text: z.string().default(""),
@@ -106,7 +108,7 @@ export const listAllArticlesAdmin = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("articles")
-      .select("id, slug, title, status, updated_at, published_at, category")
+      .select("id, slug, title, status, updated_at, published_at, category, subcategory")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -119,7 +121,7 @@ export const getArticleByIdAdmin = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("articles")
-      .select("id, slug, title, excerpt, content, content_text, cover_image_url, category, status, published_at, updated_at")
+      .select("id, slug, title, excerpt, content, content_text, cover_image_url, category, subcategory, status, published_at, updated_at")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -145,6 +147,7 @@ export const upsertArticle = createServerFn({ method: "POST" })
       slug: data.slug,
       excerpt: data.excerpt ?? null,
       category: data.category ?? null,
+      subcategory: data.subcategory ?? null,
       cover_image_url: data.cover_image_url ?? null,
       content: data.content ?? {},
       content_text: data.content_text,
