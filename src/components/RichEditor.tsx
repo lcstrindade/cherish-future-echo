@@ -55,9 +55,16 @@ const HIGHLIGHTS = [
 
 export function RichEditor({ value, onChange }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [linkQuery, setLinkQuery] = useState("");
   const uploadMedia = useServerFn(uploadArticleMedia);
   const uploadAtRef = useRef<(file: File, pos?: number) => void>(() => {});
+  const { data: allArticles = [] } = useQuery({
+    queryKey: ["docs-sidebar"],
+    queryFn: () => listPublishedArticles(),
+    staleTime: 60_000,
+  });
 
   const editor = useEditor({
     extensions: [
@@ -154,6 +161,37 @@ export function RichEditor({ value, onChange }: Props) {
 
   uploadAtRef.current = handleImageUpload;
 
+  async function handleVideoUpload(file: File) {
+    if (!editor) return;
+    setUploading(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      const CHUNK = 8192;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(
+          null,
+          Array.from(bytes.subarray(i, i + CHUNK)),
+        );
+      }
+      const dataBase64 = btoa(binary);
+      const { url } = await uploadMedia({
+        data: {
+          filename: file.name,
+          contentType: file.type || "video/mp4",
+          dataBase64,
+        },
+      });
+      editor.chain().focus().setVideo({ src: url }).run();
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao enviar vídeo: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   if (!editor) return null;
 
   function addYouTube() {
@@ -168,8 +206,35 @@ export function RichEditor({ value, onChange }: Props) {
     editor!.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }
 
+  function insertInternalLink(slug: string, title: string) {
+    editor!
+      .chain()
+      .focus()
+      .insertContent(
+        `<a href="/docs/${slug}" data-internal="true">${title}</a>`,
+      )
+      .run();
+  }
+
+  function setImageAlign(align: "left" | "center" | "right" | null) {
+    editor!.chain().focus().updateAttributes("image", { align }).run();
+  }
+
   const btn = (active: boolean) =>
     `p-2 rounded hover:bg-accent ${active ? "bg-accent text-accent-foreground" : ""}`;
+
+  const CALLOUTS: Array<{ id: "info"|"tip"|"success"|"warn"|"danger"; label: string; Icon: typeof Info }> = [
+    { id: "info", label: "Informação", Icon: Info },
+    { id: "tip", label: "Dica", Icon: Lightbulb },
+    { id: "success", label: "Sucesso", Icon: CheckCircle2 },
+    { id: "warn", label: "Aviso", Icon: AlertTriangle },
+    { id: "danger", label: "Perigo", Icon: XCircle },
+  ];
+  const filteredArticles = linkQuery.trim()
+    ? allArticles.filter((a) =>
+        a.title.toLowerCase().includes(linkQuery.toLowerCase()),
+      ).slice(0, 8)
+    : allArticles.slice(0, 8);
 
   return (
     <div className="border rounded-md bg-background">
