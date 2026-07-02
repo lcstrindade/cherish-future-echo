@@ -111,6 +111,8 @@ Durante a instalação ele:
 - cria um vhost Nginx isolado;
 - valida `nginx -t` antes de recarregar o Nginx;
 - verifica se o app responde em `127.0.0.1:<porta>/docs`;
+- verifica primeiro uma rota leve de saúde em `127.0.0.1:<porta>/api/public/health`;
+- depois testa `/docs` separadamente para diferenciar problema de servidor de problema de banco/schema;
 - verifica se o Nginx encaminha o domínio para o app localmente;
 - opcionalmente emite SSL com Let's Encrypt;
 - salva o estado da instância em `/etc/bivvo-docs/`.
@@ -242,6 +244,7 @@ install/
 | `502 Bad Gateway` | `systemctl status <slug>` e `journalctl -u <slug> -n 100` |
 | Site não abre após instalar | Rode `sudo bash /opt/bivvo-docs/install/install.sh` → opção 3 e confira serviço/Nginx |
 | Build falhou | Ver `/tmp/bivvo-install.log`; confirmar Node.js 20+ |
+| Serviço fica “ativo”, mas app não responde | Ver `sudo journalctl -u <slug> -n 120 --no-pager`; o instalador também testa `/api/public/health` e mostra diagnóstico detalhado |
 | Login admin não entra | Ver `/etc/bivvo-docs/<slug>-admin.txt`; se alterou `.env`, reinicie |
 | Busca vazia | Acesse `/admin` e use a opção de reindexar busca |
 | SSL falhou | Aguarde DNS propagar e rode menu → opção 5 |
@@ -253,6 +256,7 @@ Comandos úteis para diagnóstico:
 sudo systemctl status <slug>
 sudo journalctl -u <slug> -n 100 --no-pager
 sudo nginx -t
+curl -i http://127.0.0.1:<porta>/api/public/health
 curl -I -H "Host: docs.seudominio.com.br" http://127.0.0.1/docs
 ```
 

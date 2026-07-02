@@ -205,6 +205,7 @@ find_free_port() {
   local start="${1:-3000}" end="${2:-3999}" p used
   used="$( { ss -tlnH 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}';
              grep -rhoE 'proxy_pass[[:space:]]+https?://(127\.0\.0\.1|localhost):[0-9]+' /etc/nginx 2>/dev/null | grep -oE '[0-9]+$';
+             grep -rhoE '^PORT=[0-9]+' "$STATE_DIR" 2>/dev/null | cut -d= -f2;
            } | sort -u )"
   for ((p=start; p<=end; p++)); do
     grep -qx "$p" <<<"$used" || { echo "$p"; return; }
@@ -224,6 +225,30 @@ PORT=$PORT
 EOF
   chmod 600 "$STATE_DIR/$PROJECT.env"
 }
+
+set_env_key() {
+  local file="$1" key="$2" value="$3"
+  touch "$file"
+  if grep -qE "^${key}=" "$file"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+  else
+    printf "%s=%s\n" "$key" "$value" >> "$file"
+  fi
+}
+
+ensure_runtime_env() {
+  section "Validando variáveis runtime"
+  [ -f "$APP_DIR/.env" ] || die "Arquivo .env não encontrado em $APP_DIR/.env"
+  set_env_key "$APP_DIR/.env" "PORT" "$PORT"
+  set_env_key "$APP_DIR/.env" "HOST" "127.0.0.1"
+  set_env_key "$APP_DIR/.env" "NITRO_PORT" "$PORT"
+  set_env_key "$APP_DIR/.env" "NITRO_HOST" "127.0.0.1"
+  set_env_key "$APP_DIR/.env" "NODE_ENV" "production"
+  chown "$APP_USER":"$APP_USER" "$APP_DIR/.env" 2>/dev/null || true
+  chmod 600 "$APP_DIR/.env"
+  ok "Runtime configurado para 127.0.0.1:$PORT"
+}
+
 load_state() { # load_state <projeto>
   local f="$STATE_DIR/$1.env"; [ -f "$f" ] || die "Instalação '$1' não encontrada em $STATE_DIR"
   # shellcheck disable=SC1090
@@ -247,6 +272,23 @@ pick_install() {
   load_state "$sel"
 }
 
+validate_install_inputs() {
+  PROJECT="$(printf '%s' "$PROJECT" | tr '[:upper:]' '[:lower:]')"
+  DOMAIN="$(printf '%s' "$DOMAIN" | sed -E 's#^https?://##; s#/.*$##; s#:[0-9]+$##')"
+
+  [[ "$PROJECT" =~ ^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$ ]] || die "Nome do projeto inválido. Use apenas letras minúsculas, números e hífen. Ex.: bivvo-docs"
+  [[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || die "Domínio inválido. Informe apenas o host, ex.: docs.seudominio.com.br"
+  [[ "$APP_USER" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] || die "Usuário Linux inválido: $APP_USER"
+
+  if [ -f "/etc/systemd/system/${PROJECT}.service" ] || [ -f "$STATE_DIR/$PROJECT.env" ]; then
+    confirm "Já existe uma instância chamada '$PROJECT'. Deseja sobrescrever/reconfigurar?" || die "Use a opção 2 (Atualizar) ou escolha outro slug."
+  fi
+
+  if grep -RqsE "server_name[[:space:]].*\b${DOMAIN//./\.}\b" /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null; then
+    warn "Já existe configuração Nginx para $DOMAIN. O instalador criará/atualizará o vhost '$PROJECT'."
+  fi
+}
+
 # ---------- fluxo: instalar -------------------------------------------------
 collect_inputs() {
   section "Configuração da instância"
@@ -264,6 +306,8 @@ collect_inputs() {
   ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(openssl rand -hex 18)}"
   ok "Admin definido automaticamente: usuário '$ADMIN_USERNAME' e senha forte gerada pelo instalador"
 
+  validate_install_inputs
+
   SESSION_SECRET="$(openssl rand -hex 32)"
   PORT="$(find_free_port 3000 3999)"
   ok "Porta local livre escolhida: $PORT"
@@ -273,6 +317,17 @@ collect_inputs() {
   printf "  Projeto : %s\n  Domínio : %s\n  Porta   : %s\n  Dir     : %s\n  Usuário : %s\n" \
     "$PROJECT" "$DOMAIN" "$PORT" "$APP_DIR" "$APP_USER"
   confirm "Confirma e prossegue com o deploy?" || die "Abortado pelo usuário."
+}
+
+ensure_app_user() {
+  section "Validando usuário do serviço"
+  if id "$APP_USER" >/dev/null 2>&1; then
+    ok "Usuário Linux '$APP_USER' encontrado"
+    return
+  fi
+
+  warn "Usuário '$APP_USER' não existe — criando usuário de sistema sem login"
+  run "Criando usuário $APP_USER" useradd --system --home-dir "$APP_DIR" --shell /usr/sbin/nologin "$APP_USER"
 }
 
 write_env() {
@@ -290,6 +345,8 @@ ADMIN_PASSWORD=$ADMIN_PASSWORD
 SESSION_SECRET=$SESSION_SECRET
 PORT=$PORT
 HOST=127.0.0.1
+NITRO_PORT=$PORT
+NITRO_HOST=127.0.0.1
 NODE_ENV=production
 EOF
   chown "$APP_USER":"$APP_USER" "$APP_DIR/.env" 2>/dev/null || true
@@ -319,27 +376,81 @@ build_app() {
   chown -R "$APP_USER":"$APP_USER" "$APP_DIR/.output" 2>/dev/null || true
 }
 
+check_runtime_permissions() {
+  section "Validando permissões de execução"
+  local check_cmd="test -x '$APP_DIR' && test -r '$APP_DIR/.env' && test -r '$APP_DIR/.output/server/index.mjs'"
+  if command -v runuser >/dev/null 2>&1; then
+    if runuser -u "$APP_USER" -- bash -c "$check_cmd" >/tmp/bivvo-install.log 2>&1; then
+      ok "Usuário '$APP_USER' consegue ler o build e o .env"
+      return 0
+    fi
+  else
+    warn "Comando runuser não encontrado; pulando validação avançada de permissões"
+    return 0
+  fi
+
+  err "Usuário '$APP_USER' não consegue acessar $APP_DIR"
+  warn "Se o projeto estiver em /root, mova para /opt/bivvo-docs ou use DEFAULT_INSTALL_DIR=/opt/bivvo-docs."
+  tail -n 20 /tmp/bivvo-install.log || true
+  exit 1
+}
+
+print_service_diagnostics() {
+  echo
+  section "Diagnóstico do serviço"
+  systemctl status "$PROJECT" --no-pager -l || true
+  echo
+  warn "Logs recentes do systemd:"
+  journalctl -u "$PROJECT" -n 120 --no-pager || true
+
+  if [ -f "/var/log/${PROJECT}.err.log" ] || [ -f "/var/log/${PROJECT}.log" ]; then
+    echo
+    warn "Logs legados em /var/log (instalações antigas):"
+    [ -f "/var/log/${PROJECT}.err.log" ] && { echo "--- /var/log/${PROJECT}.err.log"; tail -n 80 "/var/log/${PROJECT}.err.log" || true; }
+    [ -f "/var/log/${PROJECT}.log" ] && { echo "--- /var/log/${PROJECT}.log"; tail -n 80 "/var/log/${PROJECT}.log" || true; }
+  fi
+
+  echo
+  warn "Portas escutando no servidor:"
+  ss -tlnp 2>/dev/null | grep -E "(:${PORT}[[:space:]]|Local Address)" || true
+
+  echo
+  warn "Teste curl detalhado da healthcheck:"
+  curl -v --noproxy '*' --max-time 8 "http://127.0.0.1:${PORT}/api/public/health" -o /tmp/bivvo-health-body.txt 2>&1 || true
+  [ -s /tmp/bivvo-health-body.txt ] && { echo "--- resposta"; cat /tmp/bivvo-health-body.txt; echo; }
+}
+
 wait_for_app() {
   section "Verificando aplicação local"
-  local url="http://127.0.0.1:${PORT}/docs" code attempt
-  for attempt in {1..30}; do
-    code="$(curl -fsS -o /tmp/bivvo-app-health.html -w "%{http_code}" --max-time 2 "$url" 2>/dev/null || true)"
+  local health_url="http://127.0.0.1:${PORT}/api/public/health" docs_url="http://127.0.0.1:${PORT}/docs" code docs_code attempt
+  for attempt in {1..45}; do
+    if ! systemctl is-active --quiet "$PROJECT"; then
+      warn "Serviço ainda não está ativo (tentativa $attempt/45)"
+    fi
+
+    code="$(curl -fsS --noproxy '*' -o /tmp/bivvo-app-health.html -w "%{http_code}" --max-time 3 "$health_url" 2>/tmp/bivvo-health-curl.err || true)"
     if [[ "$code" =~ ^(2|3)[0-9][0-9]$ ]]; then
-      ok "Aplicação respondeu localmente em $url (HTTP $code)"
+      ok "Aplicação respondeu localmente em $health_url (HTTP $code)"
+
+      docs_code="$(curl -fsS --noproxy '*' -o /tmp/bivvo-docs-health.html -w "%{http_code}" --max-time 8 "$docs_url" 2>/tmp/bivvo-docs-curl.err || true)"
+      if [[ "$docs_code" =~ ^(2|3)[0-9][0-9]$ ]]; then
+        ok "Página /docs respondeu localmente (HTTP $docs_code)"
+      else
+        warn "Servidor está online, mas /docs retornou HTTP ${docs_code:-sem resposta}. Verifique schema/credenciais do Supabase se a página mostrar erro."
+      fi
       return 0
     fi
     sleep 1
   done
 
-  err "A aplicação não respondeu em $url"
-  warn "Últimas linhas do serviço:"
-  journalctl -u "$PROJECT" -n 80 --no-pager || true
+  err "A aplicação não respondeu em $health_url"
+  print_service_diagnostics
   return 1
 }
 
 verify_nginx_route() {
   section "Verificando rota local do Nginx"
-  local url="http://127.0.0.1/docs" code
+  local url="http://127.0.0.1/api/public/health" code
   code="$(curl -fsS -o /tmp/bivvo-nginx-health.html -w "%{http_code}" --max-time 3 -H "Host: $DOMAIN" "$url" 2>/dev/null || true)"
   if [[ "$code" =~ ^(2|3)[0-9][0-9]$ ]]; then
     ok "Nginx encaminhou $DOMAIN para a aplicação (HTTP $code)"
@@ -365,11 +476,14 @@ install_service() {
       "$SCRIPT_DIR/service.template" > "$svc"
   run "systemctl daemon-reload" systemctl daemon-reload
   run "Habilitando $PROJECT.service" systemctl enable "$PROJECT"
+  systemctl reset-failed "$PROJECT" >/dev/null 2>&1 || true
   run "Iniciando $PROJECT.service"   systemctl restart "$PROJECT"
   sleep 2
   if systemctl is-active --quiet "$PROJECT"; then ok "Serviço ativo"
   else err "Serviço não subiu — journalctl -u $PROJECT -n 50"; exit 1; fi
-  wait_for_app
+  if ! wait_for_app; then
+    die "Serviço iniciou, mas a aplicação não respondeu na porta $PORT. Veja o diagnóstico acima."
+  fi
 }
 
 install_nginx() {
@@ -406,8 +520,11 @@ do_install() {
   need_root
   ensure_deps
   collect_inputs
+  ensure_app_user
   write_env
+  save_state
   build_app
+  check_runtime_permissions
   install_service
   install_nginx
   save_state
@@ -433,12 +550,16 @@ do_update() {
   section "Atualizar instância existente"
   pick_install
   ensure_deps
+  ensure_app_user
+  ensure_runtime_env
   section "Puxando código novo de $REPO_URL ($REPO_BRANCH)"
   run "git fetch"       git -C "$APP_DIR" fetch --all --prune
   run "git checkout"    git -C "$APP_DIR" checkout "$REPO_BRANCH"
   run "git pull"        git -C "$APP_DIR" pull --ff-only
   build_app
-  run "Reiniciando $PROJECT" systemctl restart "$PROJECT"
+  check_runtime_permissions
+  install_service
+  install_nginx
   ok "Atualização concluída — https://$DOMAIN"
 }
 
@@ -464,7 +585,9 @@ do_status() {
 do_restart() {
   banner; need_root
   section "Reiniciar instância"; pick_install
+  ensure_runtime_env
   run "Reiniciando $PROJECT" systemctl restart "$PROJECT"
+  wait_for_app || die "Serviço reiniciou, mas não respondeu na porta $PORT."
   run "Recarregando nginx"   systemctl reload nginx
   ok "Reiniciado"
 }
