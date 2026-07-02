@@ -17,7 +17,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as AdminIdRouteImport } from './routes/admin.$id'
-import { Route as ApiPublicHealthRouteImport } from './routes/api.public.health'
+import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
@@ -241,13 +241,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
