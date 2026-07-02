@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RichEditor } from "@/components/RichEditor";
+import { IconPicker } from "@/components/IconPicker";
 import {
   getArticleByIdAdmin,
   listAllArticlesAdmin,
@@ -47,6 +48,7 @@ function AdminEditor() {
   const [saving, setSaving] = useState(false);
   const [slugTouched, setSlugTouched] = useState(false);
   const [parentId, setParentId] = useState<string>("");
+  const [icon, setIcon] = useState<string | null>(null);
 
   const listAll = useServerFn(listAllArticlesAdmin);
   const { data: allArticles = [] } = useQuery({
@@ -92,6 +94,7 @@ function AdminEditor() {
       setStatus(r.status);
       setSlugTouched(true);
       setParentId((r as { parent_id?: string | null }).parent_id ?? "");
+      setIcon((r as { icon?: string | null }).icon ?? null);
     });
   }, [id, isNew, getOne]);
 
@@ -115,6 +118,7 @@ function AdminEditor() {
           content_text: contentText,
           status: next,
           parent_id: parentId || null,
+          icon: icon,
         },
       });
       setStatus(next);
@@ -176,6 +180,12 @@ function AdminEditor() {
         <div>
           <Label>Subtópico</Label>
           <Input value={subcategory} onChange={(e) => setSubcategory(e.target.value)} />
+        </div>
+        <div>
+          <Label>Ícone</Label>
+          <div className="mt-1">
+            <IconPicker value={icon} onChange={setIcon} />
+          </div>
         </div>
         <div>
           <Label>URL da capa</Label>

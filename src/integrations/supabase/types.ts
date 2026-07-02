@@ -24,6 +24,7 @@ export type Database = {
           created_at: string
           embedding: string | null
           excerpt: string | null
+          icon: string | null
           id: string
           parent_id: string | null
           position: number
@@ -44,6 +45,7 @@ export type Database = {
           created_at?: string
           embedding?: string | null
           excerpt?: string | null
+          icon?: string | null
           id?: string
           parent_id?: string | null
           position?: number
@@ -64,6 +66,7 @@ export type Database = {
           created_at?: string
           embedding?: string | null
           excerpt?: string | null
+          icon?: string | null
           id?: string
           parent_id?: string | null
           position?: number

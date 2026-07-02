@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, FileText, Menu, Search } from "lucide-react";
+import { ArticleIcon } from "@/components/ArticleIcon";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
 import { SearchCommand } from "@/components/SearchCommand";
@@ -259,12 +260,13 @@ function TreeItem({
           params={{ slug: node.slug }}
           onClick={onNavigate}
           className={
-            "flex-1 min-w-0 truncate py-1.5 pr-2 text-sm " +
+            "flex-1 min-w-0 truncate py-1.5 pr-2 text-sm inline-flex items-center gap-2 " +
             (active ? "font-medium" : "")
           }
           title={node.title}
         >
-          {node.title}
+          {node.icon && <ArticleIcon name={node.icon} className="h-3.5 w-3.5 shrink-0" />}
+          <span className="truncate">{node.title}</span>
         </Link>
       </div>
       {hasChildren && open && (
