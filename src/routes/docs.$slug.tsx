@@ -162,6 +162,9 @@ function ArticlePage() {
             className="rounded-lg mb-8 w-full border"
           />
         )}
+        <div className="xl:hidden mb-6">
+          <ArticleToc containerRef={contentRef} variant="select" />
+        </div>
         <div ref={contentRef} key={article.slug}>
           <ArticleRenderer content={article.content} />
         </div>
