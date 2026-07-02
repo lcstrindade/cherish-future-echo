@@ -359,6 +359,22 @@ ensure_app_user() {
   run "Criando usuário $APP_USER" useradd --system --home-dir "$APP_DIR" --shell /usr/sbin/nologin "$APP_USER"
 }
 
+ensure_repo_clone() {
+  section "Preparando código-fonte em $APP_DIR"
+  if [ -d "$APP_DIR/.git" ]; then
+    ok "Repositório já presente em $APP_DIR"
+    sync_repo_to_origin
+    return
+  fi
+  if [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+    warn "Diretório $APP_DIR existe e não é um clone git — movendo para ${APP_DIR}.bak-$$"
+    mv "$APP_DIR" "${APP_DIR}.bak-$$"
+  fi
+  mkdir -p "$(dirname "$APP_DIR")"
+  run "Clonando $REPO_URL (branch $REPO_BRANCH) em $APP_DIR" \
+    git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
+}
+
 write_env() {
   section "Gravando .env"
   umask 077
