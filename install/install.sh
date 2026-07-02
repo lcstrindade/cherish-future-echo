@@ -88,7 +88,14 @@ if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.j
   ok "Diretório de instalação: $APP_DIR"
   if [ -d "$APP_DIR/.git" ]; then
     run "Atualizando repositório existente em $APP_DIR" \
-      bash -c "git -C '$APP_DIR' fetch --all --prune && git -C '$APP_DIR' checkout -- . && git -C '$APP_DIR' checkout '$REPO_BRANCH' && git -C '$APP_DIR' reset --hard 'origin/$REPO_BRANCH'"
+      bash -c "
+        cp -a '$APP_DIR/.env' '$APP_DIR/.env.preinstall.bak' 2>/dev/null || true
+        git -C '$APP_DIR' fetch --all --prune &&
+        git -C '$APP_DIR' checkout '$REPO_BRANCH' -- . 2>/dev/null || true
+        git -C '$APP_DIR' checkout '$REPO_BRANCH' &&
+        git -C '$APP_DIR' reset --hard 'origin/$REPO_BRANCH' &&
+        { [ -f '$APP_DIR/.env.preinstall.bak' ] && mv -f '$APP_DIR/.env.preinstall.bak' '$APP_DIR/.env' || true; }
+      "
   else
     mkdir -p "$(dirname "$APP_DIR")"
     run "Clonando $REPO_URL em $APP_DIR" git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
@@ -553,10 +560,11 @@ do_update() {
   ensure_app_user
   ensure_runtime_env
   section "Puxando código novo de $REPO_URL ($REPO_BRANCH)"
+  [ -f "$APP_DIR/.env" ] && cp -a "$APP_DIR/.env" "$APP_DIR/.env.preinstall.bak" || true
   run "git fetch"       git -C "$APP_DIR" fetch --all --prune
-  run "git reset local" git -C "$APP_DIR" checkout -- .
   run "git checkout"    git -C "$APP_DIR" checkout "$REPO_BRANCH"
   run "git reset hard"  git -C "$APP_DIR" reset --hard "origin/$REPO_BRANCH"
+  [ -f "$APP_DIR/.env.preinstall.bak" ] && mv -f "$APP_DIR/.env.preinstall.bak" "$APP_DIR/.env" || true
   build_app
   check_runtime_permissions
   install_service
