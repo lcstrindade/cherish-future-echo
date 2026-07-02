@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -221,6 +222,12 @@ function AdminEditor() {
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+      <div>
+        <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/admin" })}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para todos os artigos
+        </Button>
+      </div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">
           {isNew ? "Novo artigo" : "Editar artigo"}
