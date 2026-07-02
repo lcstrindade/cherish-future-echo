@@ -105,7 +105,16 @@ cd "$APP_DIR"
 # ---------- dependency management ------------------------------------------
 APT_UPDATED=0
 apt_install() { # apt_install pkg1 pkg2...
-  [ $APT_UPDATED -eq 0 ] && { run "Atualizando índice apt" apt-get update -y; APT_UPDATED=1; }
+  if [ $APT_UPDATED -eq 0 ]; then
+    step "Atualizando índice apt (ignorando repositórios de terceiros com erro)"
+    if apt-get update -y >/tmp/bivvo-install.log 2>&1; then
+      ok "Índice apt atualizado"
+    else
+      warn "apt-get update retornou avisos (provavelmente repositório de terceiros quebrado) — seguindo mesmo assim"
+      tail -n 5 /tmp/bivvo-install.log || true
+    fi
+    APT_UPDATED=1
+  fi
   run "Instalando pacote(s): $*" apt-get install -y "$@"
 }
 
