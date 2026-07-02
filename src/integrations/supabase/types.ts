@@ -131,10 +131,14 @@ export type Database = {
           category: string
           cover_image_url: string
           excerpt: string
+          icon: string
           id: string
+          parent_id: string
+          position: number
           published_at: string
           score: number
           slug: string
+          subcategory: string
           title: string
         }[]
       }
