@@ -14,6 +14,16 @@ import {
   upsertArticle,
 } from "@/lib/articles.functions";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/admin/$id")({
   component: AdminEditor,
@@ -52,6 +62,8 @@ function AdminEditor() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [publishOpen, setPublishOpen] = useState(false);
+  const savedSnapshotRef = useRef<Record<string, unknown> | null>(null);
   const skipAutosaveRef = useRef(true);
   const currentIdRef = useRef<string>(id);
   useEffect(() => { currentIdRef.current = id; }, [id]);
@@ -103,6 +115,13 @@ function AdminEditor() {
       setIcon((r as { icon?: string | null }).icon ?? null);
       setLastSavedAt(new Date());
       skipAutosaveRef.current = true;
+      savedSnapshotRef.current = snapshot({
+        title: r.title, slug: r.slug, excerpt: r.excerpt ?? "",
+        category: r.category ?? "", subcategory: r.subcategory ?? "",
+        coverUrl: r.cover_image_url ?? "", content: r.content,
+        parentId: (r as { parent_id?: string | null }).parent_id ?? "",
+        icon: (r as { icon?: string | null }).icon ?? null,
+      });
     });
   }, [id, isNew, getOne]);
 
@@ -132,6 +151,10 @@ function AdminEditor() {
       setStatus(next);
       toast.success(next === "published" ? "Publicado!" : "Salvo");
       setLastSavedAt(new Date());
+      savedSnapshotRef.current = snapshot({
+        title, slug, excerpt, category, subcategory,
+        coverUrl, content, parentId, icon,
+      });
       if (isNew && res) {
         navigate({ to: "/admin/$id", params: { id: (res as { id: string }).id } });
       }
@@ -168,6 +191,10 @@ function AdminEditor() {
           },
         });
         setLastSavedAt(new Date());
+        savedSnapshotRef.current = snapshot({
+          title, slug, excerpt, category, subcategory,
+          coverUrl, content, parentId, icon,
+        });
       } catch {
         // silent
       } finally {
@@ -185,6 +212,12 @@ function AdminEditor() {
   }, []);
 
   const savedAgo = lastSavedAt ? formatAgo(now - lastSavedAt.getTime()) : null;
+
+  const currentSnapshot = snapshot({
+    title, slug, excerpt, category, subcategory,
+    coverUrl, content, parentId, icon,
+  });
+  const changes = diffSnapshots(savedSnapshotRef.current, currentSnapshot);
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
@@ -212,13 +245,47 @@ function AdminEditor() {
             Salvar rascunho
           </Button>
           <Button
-            onClick={() => onSave("published")}
+            onClick={() => setPublishOpen(true)}
             disabled={saving || !title || !slug}
           >
             Publicar
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={publishOpen} onOpenChange={setPublishOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar publicação</AlertDialogTitle>
+            <AlertDialogDescription>
+              {changes.length === 0
+                ? "Nenhuma alteração desde o último rascunho salvo. Deseja publicar mesmo assim?"
+                : "Revise as alterações desde o último rascunho salvo antes de publicar:"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {changes.length > 0 && (
+            <ul className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-3 text-sm space-y-1">
+              {changes.map((c) => (
+                <li key={c.field} className="flex gap-2">
+                  <span className="font-medium">{c.label}:</span>
+                  <span className="text-muted-foreground">{c.summary}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPublishOpen(false);
+                onSave("published");
+              }}
+            >
+              Publicar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
