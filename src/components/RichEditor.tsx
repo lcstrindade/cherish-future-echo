@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listPublishedArticles } from "@/lib/articles.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
+import { useEffect } from "react";
 import {
   Bold, Italic, Strikethrough, Code, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Minus, Link as LinkIcon, Image as ImageIcon,
@@ -58,6 +59,14 @@ export function RichEditor({ value, onChange }: Props) {
   const videoInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [linkQuery, setLinkQuery] = useState("");
+  const [slash, setSlash] = useState<{
+    open: boolean;
+    query: string;
+    top: number;
+    left: number;
+    from: number;
+  }>({ open: false, query: "", top: 0, left: 0, from: 0 });
+  const [slashIndex, setSlashIndex] = useState(0);
   const uploadMedia = useServerFn(uploadArticleMedia);
   const uploadAtRef = useRef<(file: File, pos?: number) => void>(() => {});
   const { data: allArticles = [] } = useQuery({
@@ -94,7 +103,28 @@ export function RichEditor({ value, onChange }: Props) {
       VideoEmbed,
     ],
     content: value || "",
-    onUpdate: ({ editor }) => onChange(editor.getJSON(), editor.getText()),
+    onUpdate: ({ editor }) => {
+      onChange(editor.getJSON(), editor.getText());
+      // Slash command detection
+      const { $from } = editor.state.selection;
+      const paraText = $from.parent.textContent;
+      if (paraText.startsWith("/") && $from.parent.type.name === "paragraph") {
+        const query = paraText.slice(1);
+        const start = $from.start();
+        const coords = editor.view.coordsAtPos(start);
+        const container = editor.view.dom.getBoundingClientRect();
+        setSlash({
+          open: true,
+          query,
+          top: coords.bottom - container.top + 6,
+          left: coords.left - container.left,
+          from: start,
+        });
+        setSlashIndex(0);
+      } else {
+        setSlash((s) => (s.open ? { ...s, open: false } : s));
+      }
+    },
     editorProps: {
       attributes: {
         class:
@@ -160,6 +190,59 @@ export function RichEditor({ value, onChange }: Props) {
   }
 
   uploadAtRef.current = handleImageUpload;
+
+  type SlashItem = { label: string; keywords: string; run: () => void };
+  const slashItems: SlashItem[] = editor
+    ? [
+        { label: "Título 1", keywords: "h1 heading titulo", run: () => editor.chain().focus().toggleHeading({ level: 1 }).run() },
+        { label: "Título 2", keywords: "h2 heading titulo", run: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
+        { label: "Título 3", keywords: "h3 heading titulo", run: () => editor.chain().focus().toggleHeading({ level: 3 }).run() },
+        { label: "Lista com marcadores", keywords: "bullet list", run: () => editor.chain().focus().toggleBulletList().run() },
+        { label: "Lista numerada", keywords: "ordered list numero", run: () => editor.chain().focus().toggleOrderedList().run() },
+        { label: "Lista de tarefas", keywords: "task todo checkbox", run: () => editor.chain().focus().toggleTaskList().run() },
+        { label: "Citação", keywords: "quote blockquote", run: () => editor.chain().focus().toggleBlockquote().run() },
+        { label: "Divisor", keywords: "hr horizontal rule linha", run: () => editor.chain().focus().setHorizontalRule().run() },
+        { label: "Bloco de código", keywords: "code codeblock", run: () => editor.chain().focus().toggleCodeBlock().run() },
+        { label: "Tabela 3×3", keywords: "table tabela", run: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+        { label: "Callout: Informação", keywords: "callout info aviso", run: () => editor.chain().focus().setCallout("info").run() },
+        { label: "Callout: Dica", keywords: "callout tip dica", run: () => editor.chain().focus().setCallout("tip").run() },
+        { label: "Callout: Aviso", keywords: "callout warn atencao", run: () => editor.chain().focus().setCallout("warn").run() },
+        { label: "Callout: Perigo", keywords: "callout danger perigo erro", run: () => editor.chain().focus().setCallout("danger").run() },
+        { label: "Bloco recolhível", keywords: "toggle details accordion", run: () => editor.chain().focus().insertDetails().run() },
+        { label: "Imagem", keywords: "image imagem foto", run: () => fileInput.current?.click() },
+        { label: "Vídeo (upload)", keywords: "video mp4", run: () => videoInput.current?.click() },
+        { label: "Vídeo YouTube", keywords: "video youtube embed", run: () => addYouTube() },
+      ]
+    : [];
+
+  const filteredSlash = slash.query
+    ? slashItems.filter((i) =>
+        (i.label + " " + i.keywords).toLowerCase().includes(slash.query.toLowerCase()),
+      )
+    : slashItems;
+
+  function runSlash(item: SlashItem) {
+    if (!editor) return;
+    const to = editor.state.selection.$from.end();
+    editor.chain().focus().deleteRange({ from: slash.from, to }).run();
+    item.run();
+    setSlash((s) => ({ ...s, open: false }));
+  }
+
+  useEffect(() => {
+    if (!slash.open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { setSlash((s) => ({ ...s, open: false })); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); setSlashIndex((i) => Math.min(i + 1, filteredSlash.length - 1)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setSlashIndex((i) => Math.max(i - 1, 0)); }
+      else if (e.key === "Enter") {
+        const it = filteredSlash[slashIndex];
+        if (it) { e.preventDefault(); runSlash(it); }
+      }
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [slash.open, slashIndex, filteredSlash]);
 
   async function handleVideoUpload(file: File) {
     if (!editor) return;
@@ -237,7 +320,7 @@ export function RichEditor({ value, onChange }: Props) {
     : allArticles.slice(0, 8);
 
   return (
-    <div className="border rounded-md bg-background">
+    <div className="border rounded-md bg-background relative">
       <div className="flex flex-wrap gap-1 border-b p-2 sticky top-0 bg-background z-10">
         <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive("bold"))}><Bold className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive("italic"))}><Italic className="h-4 w-4" /></button>
@@ -391,6 +474,24 @@ export function RichEditor({ value, onChange }: Props) {
         />
       </div>
       <EditorContent editor={editor} />
+      {slash.open && filteredSlash.length > 0 && (
+        <div
+          className="absolute z-50 w-64 max-h-72 overflow-y-auto rounded-md border bg-popover shadow-md p-1"
+          style={{ top: slash.top, left: slash.left }}
+        >
+          {filteredSlash.map((it, i) => (
+            <button
+              key={it.label}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); runSlash(it); }}
+              onMouseEnter={() => setSlashIndex(i)}
+              className={`w-full text-left text-sm px-2 py-1.5 rounded ${i === slashIndex ? "bg-accent" : ""}`}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
       {editor.isActive("image") && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
           <span className="text-muted-foreground">Imagem:</span>
