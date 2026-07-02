@@ -15,8 +15,10 @@ function slugify(text: string): string {
 
 export function ArticleToc({
   containerRef,
+  variant = "sidebar",
 }: {
   containerRef: RefObject<HTMLDivElement | null>;
+  variant?: "sidebar" | "select";
 }) {
   const [items, setItems] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -80,6 +82,40 @@ export function ArticleToc({
   }, [containerRef]);
 
   if (items.length === 0) return null;
+
+  const jumpTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    history.replaceState(null, "", `#${id}`);
+    setActiveId(id);
+  };
+
+  if (variant === "select") {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border bg-background/60 px-3 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
+          Nesta página
+        </span>
+        <select
+          aria-label="Nesta página"
+          value={activeId}
+          onChange={(e) => jumpTo(e.target.value)}
+          className="flex-1 min-w-0 bg-transparent text-sm outline-none"
+        >
+          <option value="" disabled>
+            Ir para seção…
+          </option>
+          {items.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.level === 3 ? "— " : ""}
+              {item.text}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   return (
     <nav aria-label="Nesta página" className="text-sm">
