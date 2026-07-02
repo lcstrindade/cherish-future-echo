@@ -159,6 +159,28 @@
 .ProseMirror a, .prose a { color: #2563eb; text-decoration: underline; }
 .ProseMirror hr, .prose hr { border: 0; border-top: 1px solid var(--color-border); margin: 1.5rem 0; }
 
+/* Placeholder (@tiptap/extension-placeholder) */
+.ProseMirror p.is-editor-empty:first-child::before,
+.ProseMirror .is-empty::before {
+  color: var(--color-muted-foreground);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Task list checkboxes */
+.ProseMirror ul[data-type="taskList"] li > label > input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--color-muted-foreground);
+  text-decoration: line-through;
+}
+
 .ProseMirror table {
   border-collapse: collapse;
   table-layout: fixed;
