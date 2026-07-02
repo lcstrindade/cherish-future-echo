@@ -4,14 +4,33 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Youtube from "@tiptap/extension-youtube";
+import { Table } from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import TextAlign from "@tiptap/extension-text-align";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
+import Underline from "@tiptap/extension-underline";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
+import Typography from "@tiptap/extension-typography";
+import CharacterCount from "@tiptap/extension-character-count";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import {
   Bold, Italic, Strikethrough, Code, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Minus, Link as LinkIcon, Image as ImageIcon,
-  Youtube as YoutubeIcon, Undo, Redo, Code2,
+  Youtube as YoutubeIcon, Undo, Redo, Code2, Underline as UnderlineIcon,
+  Subscript as SubIcon, Superscript as SupIcon, AlignLeft, AlignCenter,
+  AlignRight, AlignJustify, ListChecks, Table as TableIcon, Highlighter,
+  Palette, Rows, Columns, Trash2, Eraser,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { uploadArticleMedia } from "@/lib/articles.functions";
 import { toast } from "sonner";
 
@@ -19,6 +38,15 @@ type Props = {
   value: unknown;
   onChange: (json: unknown, text: string) => void;
 };
+
+const PALETTE = [
+  "#0f172a", "#dc2626", "#ea580c", "#ca8a04", "#16a34a",
+  "#0891b2", "#2563eb", "#7c3aed", "#db2777", "#6b7280",
+];
+const HIGHLIGHTS = [
+  "#fef08a", "#bbf7d0", "#bfdbfe", "#fecaca", "#e9d5ff",
+  "#fed7aa", "#fbcfe8", "#e5e7eb",
+];
 
 export function RichEditor({ value, onChange }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -33,6 +61,21 @@ export function RichEditor({ value, onChange }: Props) {
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: "Escreva seu artigo..." }),
       Youtube.configure({ width: 640, height: 360, nocookie: true }),
+      Underline,
+      Subscript,
+      Superscript,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Typography,
+      Table.configure({ resizable: true, HTMLAttributes: { class: "tiptap-table" } }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      CharacterCount,
     ],
     content: value || "",
     onUpdate: ({ editor }) => onChange(editor.getJSON(), editor.getText()),
