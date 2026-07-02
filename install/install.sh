@@ -325,8 +325,7 @@ do_install() {
   printf "${C_G}${C_BLD}════════════════════════════════════════════════════════════════${C_N}\n"
   echo "  URL          : https://$DOMAIN"
   echo "  Admin login  : https://$DOMAIN/auth  (usuário: $ADMIN_USERNAME)"
-  echo "  Senha admin  : $ADMIN_PASSWORD"
-  echo "  Cópia segura : $STATE_DIR/${PROJECT}-admin.txt"
+  echo "  Senha admin  : salva em $STATE_DIR/${PROJECT}-admin.txt"
   echo "  Logs         : journalctl -u $PROJECT -f"
   echo "  Gerenciar    : sudo bash $APP_DIR/install/install.sh"
   echo

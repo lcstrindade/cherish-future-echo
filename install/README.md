@@ -20,13 +20,13 @@ Agora o instalador define isso automaticamente:
 - usuário padrão: `admin`
 - senha: gerada automaticamente com valor forte e aleatório
 
-No final da instalação, o instalador mostra a senha uma vez e também salva uma cópia em:
+No final da instalação, o instalador **não imprime a senha no terminal**. Ele salva uma cópia em:
 
 ```bash
 /etc/bivvo-docs/<slug>-admin.txt
 ```
 
-Esse arquivo fica com permissão `600`, acessível apenas pelo root. Para trocar depois, edite o `.env` da instância e reinicie pelo menu do instalador.
+Esse arquivo fica com permissão `600`, acessível apenas pelo root. Para consultar a senha inicial, use `sudo cat /etc/bivvo-docs/<slug>-admin.txt`. Para trocar depois, edite o `.env` da instância e reinicie pelo menu do instalador.
 
 > Resumo: no Supabase você prepara banco/storage. O usuário e senha do painel são do app e o instalador já cria automaticamente.
 
@@ -155,8 +155,7 @@ O final da instalação mostrará algo como:
 ```text
 URL          : https://docs.seudominio.com.br
 Admin login  : https://docs.seudominio.com.br/auth  (usuário: admin)
-Senha admin  : <senha-gerada>
-Cópia segura : /etc/bivvo-docs/bivvo-docs-admin.txt
+Senha admin  : salva em /etc/bivvo-docs/bivvo-docs-admin.txt
 ```
 
 Para ver novamente a senha inicial:
