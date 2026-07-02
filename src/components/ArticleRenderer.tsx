@@ -1,6 +1,5 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Youtube from "@tiptap/extension-youtube";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
@@ -19,6 +18,7 @@ import Underline from "@tiptap/extension-underline";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import Typography from "@tiptap/extension-typography";
+import { Callout, DetailsBlock, VideoEmbed, AlignableImage } from "@/lib/tiptap-extensions";
 
 export function ArticleRenderer({ content }: { content: unknown }) {
   const editor = useEditor({
@@ -26,7 +26,7 @@ export function ArticleRenderer({ content }: { content: unknown }) {
     extensions: [
       StarterKit.configure({ codeBlock: false }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
-      Image,
+      AlignableImage,
       Link.configure({ openOnClick: true }),
       Youtube.configure({ nocookie: true }),
       Underline,
@@ -43,6 +43,9 @@ export function ArticleRenderer({ content }: { content: unknown }) {
       TableCell,
       TaskList,
       TaskItem.configure({ nested: true }),
+      Callout,
+      DetailsBlock,
+      VideoEmbed,
     ],
     content: (content as object) ?? "",
     editorProps: {
