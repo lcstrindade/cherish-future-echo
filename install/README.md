@@ -1,178 +1,263 @@
 # Bivvo Docs — Instalação self-hosted
 
-Central de Ajuda / Documentação com painel admin, editor rico e busca
-híbrida. Roda em qualquer VPS Debian/Ubuntu com Nginx + systemd,
-usando um Supabase externo (supabase.com ou self-hosted) como backend.
+Central de Ajuda / Documentação com painel admin, editor rico, upload de mídia e busca inteligente. Roda em VPS Debian/Ubuntu com Nginx + systemd e usa um Supabase externo como banco/storage.
 
 Repositório: <https://github.com/lcstrindade/cherish-future-echo>
 
 ---
 
-## Sobre o login do admin
+## Entendendo o login do admin
 
-O login do painel `/auth` **não é** um usuário do Supabase Auth. Ele é
-um gate de sessão por cookie, validado no servidor contra duas
-variáveis de ambiente do próprio app:
+O painel `/auth` **não usa usuário criado no Supabase Auth**.
+
+Ele é um login simples do próprio sistema, validado no servidor por variáveis no `.env` da VPS:
 
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
 
-Essas duas variáveis são definidas no `.env` da VPS (o instalador
-pergunta e grava com `chmod 600`). Todas as escritas no banco são
-feitas por server functions usando a `service_role` do Supabase, que
-ignora RLS — por isso não é preciso criar usuário/role no Supabase
-para o admin funcionar.
+Agora o instalador define isso automaticamente:
 
-Para trocar a senha do admin depois, edite o `.env` da instância e
-reinicie o serviço (menu → opção **4 Reiniciar**), ou rode o menu do
-instalador → opção **2 Atualizar**.
+- usuário padrão: `admin`
+- senha: gerada automaticamente com valor forte e aleatório
 
----
+No final da instalação, o instalador mostra a senha uma vez e também salva uma cópia em:
 
-## Etapa 1 — Preparar o Supabase (fazer ANTES do instalador)
+```bash
+/etc/bivvo-docs/<slug>-admin.txt
+```
 
-1. Crie um projeto em <https://supabase.com> (ou use seu Supabase
-   self-hosted).
-2. Abra **SQL Editor → New query**, cole o conteúdo inteiro de
-   `install/schema.sql` e rode. Isso cria:
-   - extensões `vector`, `pg_trgm`, `unaccent`;
-   - tabelas `articles` e `user_roles` com RLS + GRANTs;
-   - função `search_articles` (busca híbrida FTS + vetor + trigram);
-   - bucket privado `article-media` com policies;
-   - um artigo de boas-vindas.
-3. Em **Project Settings → API**, copie estes três valores — o
-   instalador vai pedir todos:
-   - **Project URL** (ex.: `https://xxxx.supabase.co`)
-   - **anon public** key
-   - **service_role** key (secreta, nunca exponha no front)
+Esse arquivo fica com permissão `600`, acessível apenas pelo root. Para trocar depois, edite o `.env` da instância e reinicie pelo menu do instalador.
 
-Pronto. Você **não** precisa criar usuário em Authentication → Users
-para o admin (veja a seção acima).
+> Resumo: no Supabase você prepara banco/storage. O usuário e senha do painel são do app e o instalador já cria automaticamente.
 
 ---
 
-## Etapa 2 — Rodar o instalador na VPS
+## Etapa 1 — Preparar o Supabase externo
 
-No servidor, como root:
+Faça isso antes de rodar o instalador na VPS.
+
+### 1. Criar o projeto
+
+Crie um projeto no Supabase Cloud ou no seu Supabase self-hosted.
+
+### 2. Rodar o schema
+
+No SQL Editor do Supabase, cole e execute o conteúdo completo de:
+
+```bash
+install/schema.sql
+```
+
+Esse arquivo cria/configura:
+
+- extensões `vector`, `pg_trgm` e `unaccent`;
+- tabela `articles`;
+- tabela `user_roles`;
+- políticas RLS e `GRANTs` necessários;
+- função `search_articles` para busca híbrida;
+- bucket privado `article-media`;
+- artigo inicial de teste/boas-vindas.
+
+### 3. Separar as credenciais do Supabase
+
+Você precisará informar ao instalador:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY` / `anon public key`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Guarde a `service_role` com cuidado. Ela é secreta e nunca deve ir para o frontend ou para um repositório público.
+
+### 4. Verificar antes de seguir
+
+Antes da VPS, confirme que você tem:
+
+- domínio apontado para o IP da VPS;
+- credenciais do Supabase externo;
+- acesso root/sudo à VPS;
+- porta 80 liberada para Nginx;
+- porta 443 liberada se for emitir SSL.
+
+---
+
+## Etapa 2 — Rodar o autoinstalador na VPS
+
+No servidor, rode:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh | sudo bash
 ```
 
-O painel interativo mostra em tempo real tudo o que faz e apresenta o
-menu:
+Se estiver rodando a partir de um clone local:
 
-```
-  1) Instalar nova instância
-  2) Atualizar instância existente
-  3) Ver status das instâncias
-  4) Reiniciar uma instância
-  5) Emitir / renovar SSL
-  6) Desinstalar uma instância
-  0) Sair
+```bash
+sudo bash install/install.sh
 ```
 
-Ao escolher **1 Instalar**, o instalador:
+O instalador abre um menu interativo:
 
-- Verifica se rodou como root.
-- Clona o repositório em `/opt/bivvo-docs` (perguntará o caminho).
-- Instala/atualiza automaticamente o que faltar: `git`, `curl`,
-  `nginx`, `openssl`, `iproute2`, **Node.js 20** (via NodeSource) e
-  **Bun**. Se o Nginx já existir, ele é reaproveitado — nada é
-  reinstalado nem sobrescrito.
-- Detecta uma **porta local livre** entre 3000–3999, varrendo
-  `ss -tln` e todos os `proxy_pass 127.0.0.1:PORT` já presentes em
-  `/etc/nginx`, então nunca colide com outros projetos da mesma VPS.
-- Coleta interativamente:
-  - domínio (ex.: `docs.seudominio.com`);
-  - **usuário do sistema** — o usuário Linux dono do processo
-    (padrão `www-data`; **nunca use root**);
-  - credenciais do Supabase da Etapa 1 (URL, anon, service_role);
-  - `ADMIN_USERNAME` e `ADMIN_PASSWORD` do painel.
-- Gera o `.env` com `chmod 600` e cria `SESSION_SECRET` aleatório
-  (`openssl rand -hex 32`).
-- Roda `bun install` + build (`NITRO_PRESET=node-server`).
-- Cria um **serviço systemd** próprio (`<slug>.service`) e um
-  **vhost Nginx isolado** em `sites-available/<slug>.conf`.
-- Valida com `nginx -t` antes de qualquer `reload` — se falhar,
-  aborta sem derrubar seus outros vhosts.
-- Opcionalmente emite SSL Let's Encrypt via `certbot --nginx`.
-- Salva o estado em `/etc/bivvo-docs/<slug>.env` para permitir
-  update / restart / SSL / desinstalação depois pelo mesmo menu.
+```text
+1) Instalar nova instância
+2) Atualizar instância existente
+3) Ver status das instâncias
+4) Reiniciar uma instância
+5) Emitir / renovar SSL
+6) Desinstalar uma instância
+0) Sair
+```
 
-### É seguro em VPS que já tem outros projetos?
-
-Sim. O instalador é aditivo: cria arquivos novos, escolhe porta livre,
-valida `nginx -t` antes de recarregar e não edita configs existentes.
+Escolha **1 — Instalar nova instância**.
 
 ---
 
-## Menu do instalador em detalhe
+## O que o instalador faz automaticamente
 
-| Opção | O que faz |
+Durante a instalação ele:
+
+- clona o repositório em `/opt/bivvo-docs` ou no diretório escolhido;
+- instala/atualiza dependências necessárias: `git`, `curl`, `nginx`, `openssl`, `iproute2`, Node.js 20 e Bun;
+- reaproveita o Nginx existente, se já estiver instalado;
+- detecta porta local livre entre `3000` e `3999`, evitando conflito com outros projetos;
+- pergunta o domínio da instância;
+- pergunta o usuário Linux que executará o serviço, com padrão `www-data`;
+- pergunta as credenciais do Supabase externo;
+- gera automaticamente `ADMIN_USERNAME=admin` e uma senha forte para o painel;
+- gera `SESSION_SECRET` automaticamente;
+- cria `.env` com permissão `600`;
+- executa `bun install` e build de produção;
+- cria um serviço systemd isolado;
+- cria um vhost Nginx isolado;
+- valida `nginx -t` antes de recarregar o Nginx;
+- opcionalmente emite SSL com Let's Encrypt;
+- salva o estado da instância em `/etc/bivvo-docs/`.
+
+---
+
+## Campos solicitados na instalação
+
+| Campo | O que é |
 | --- | --- |
-| **1 Instalar** | Fluxo completo descrito acima. |
-| **2 Atualizar** | Escolhe uma instância registrada, faz `git pull`, `bun install`, rebuild e `systemctl restart`. |
-| **3 Status** | Lista instâncias em `/etc/bivvo-docs/` e mostra quais estão ativas no systemd. |
-| **4 Reiniciar** | `systemctl restart <slug>` + `nginx reload`. |
-| **5 SSL** | (Re)emite Let's Encrypt via `certbot --nginx` para o domínio da instância. |
-| **6 Desinstalar** | Remove serviço systemd, vhost Nginx e estado; opcionalmente apaga o diretório. Dados no Supabase são preservados. |
+| Nome do projeto | Slug interno da instância, ex.: `bivvo-docs` |
+| Domínio público | Domínio que abrirá a documentação, ex.: `docs.seudominio.com.br` |
+| Usuário do sistema | Usuário Linux que executa o app, padrão `www-data`; não use `root` |
+| `SUPABASE_URL` | URL do Supabase externo |
+| `SUPABASE_PUBLISHABLE_KEY` | Chave pública/anon do Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Chave secreta usada apenas no servidor |
 
-Reabrir o menu depois:
+O instalador **não pergunta mais** `ADMIN_USERNAME` e `ADMIN_PASSWORD`, porque cria os dois automaticamente.
+
+---
+
+## Após instalar
+
+O final da instalação mostrará algo como:
+
+```text
+URL          : https://docs.seudominio.com.br
+Admin login  : https://docs.seudominio.com.br/auth  (usuário: admin)
+Senha admin  : <senha-gerada>
+Cópia segura : /etc/bivvo-docs/bivvo-docs-admin.txt
+```
+
+Para ver novamente a senha inicial:
+
+```bash
+sudo cat /etc/bivvo-docs/<slug>-admin.txt
+```
+
+Para trocar o usuário/senha depois:
+
+```bash
+sudo nano /opt/bivvo-docs/.env
+sudo bash /opt/bivvo-docs/install/install.sh
+```
+
+No menu, escolha **4 — Reiniciar uma instância**.
+
+---
+
+## Segurança e projetos já existentes
+
+O instalador foi feito para VPS com outros projetos rodando.
+
+Ele é aditivo e isolado:
+
+- não sobrescreve vhosts existentes;
+- não remove projetos existentes;
+- não usa porta já ocupada;
+- cria serviço systemd próprio;
+- cria arquivo Nginx próprio;
+- roda `nginx -t` antes de reload;
+- se o teste do Nginx falhar, ele aborta sem aplicar reload.
+
+---
+
+## Atualizar, reiniciar, SSL e remover
+
+Reabra o menu:
 
 ```bash
 sudo bash /opt/bivvo-docs/install/install.sh
 ```
 
+| Opção | O que faz |
+| --- | --- |
+| 1 | Instala nova instância |
+| 2 | Atualiza código, dependências, build e reinicia |
+| 3 | Mostra status das instâncias |
+| 4 | Reinicia serviço e Nginx |
+| 5 | Emite/renova SSL |
+| 6 | Remove serviço, vhost e estado da instância |
+
+A remoção não apaga os dados no Supabase externo.
+
 ---
 
-## Múltiplas instâncias no mesmo servidor
+## Múltiplas instâncias
 
-Rode a opção **1** de novo com outro slug e outro domínio. A detecção
-de porta livre garante que cada instância use uma porta diferente e
-cada vhost aponte para o serviço correto.
+Você pode rodar a opção **1** novamente com outro slug e outro domínio. O instalador escolherá outra porta local livre e criará outro serviço/vhost isolado.
 
 ---
 
-## Overrides via variáveis de ambiente
+## Variáveis avançadas
 
 ```bash
-# Instalar de outra branch/tag:
+# Instalar de outra branch/tag
 sudo REPO_BRANCH=v1.2.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh)"
 
-# Instalar de um fork:
+# Instalar de um fork
 sudo REPO_URL=https://github.com/seu-fork/cherish-future-echo.git bash install/install.sh
 
-# Mudar diretório padrão do clone:
+# Mudar diretório padrão
 sudo DEFAULT_INSTALL_DIR=/srv/docs bash install/install.sh
+
+# Forçar credenciais admin específicas, se realmente quiser
+sudo ADMIN_USERNAME=meuadmin ADMIN_PASSWORD='senha-forte-aqui' bash install/install.sh
 ```
 
 ---
 
-## Estrutura de arquivos
+## Estrutura da pasta `install/`
 
-```
+```text
 install/
-  install.sh            # instalador interativo com menu
-  schema.sql            # schema completo do Supabase (idempotente)
-  nginx.conf.template   # vhost com proxy_pass para 127.0.0.1:PORT
-  service.template      # unit systemd
-  .env.example          # modelo do .env (gerado automaticamente)
-  README.md             # este arquivo
+  install.sh            # autoinstalador interativo
+  schema.sql            # schema completo do Supabase externo
+  nginx.conf.template   # vhost Nginx
+  service.template      # serviço systemd
+  .env.example          # referência de variáveis
+  README.md             # este guia
 ```
-
-Estado salvo em `/etc/bivvo-docs/<slug>.env` (modo 600).
-Log da última operação em `/tmp/bivvo-install.log`.
 
 ---
 
 ## Troubleshooting
 
-| Sintoma | Diagnóstico |
+| Sintoma | O que verificar |
 | --- | --- |
 | `502 Bad Gateway` | `systemctl status <slug>` e `journalctl -u <slug> -n 100` |
-| Build falha | `node -v` deve ser ≥ 20; ver `/tmp/bivvo-install.log` |
-| Login admin não entra | Confira `ADMIN_USERNAME` / `ADMIN_PASSWORD` no `.env` da instância e reinicie (menu → **4**) |
-| Busca vazia | Clique em "Reindexar busca" em `/admin` |
-| SSL falhou | Menu → opção **5** depois que o DNS propagar |
-| `nginx -t` falhou | Revise `/etc/nginx/sites-available/<slug>.conf` — o instalador **não** recarrega quando o teste falha |
+| Build falhou | Ver `/tmp/bivvo-install.log`; confirmar Node.js 20+ |
+| Login admin não entra | Ver `/etc/bivvo-docs/<slug>-admin.txt`; se alterou `.env`, reinicie |
+| Busca vazia | Acesse `/admin` e use a opção de reindexar busca |
+| SSL falhou | Aguarde DNS propagar e rode menu → opção 5 |
+| `nginx -t` falhou | Revise `/etc/nginx/sites-available/<slug>.conf`; o instalador não recarrega se o teste falhar |
