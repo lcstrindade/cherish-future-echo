@@ -9,7 +9,7 @@ import { useRef, useState } from "react";
 import {
   Bold, Italic, Strikethrough, Code, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Minus, Link as LinkIcon, Image as ImageIcon,
-  Youtube as YoutubeIcon, Undo, Redo,
+  Youtube as YoutubeIcon, Undo, Redo, Code2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { uploadArticleMedia } from "@/lib/articles.functions";
@@ -126,6 +126,7 @@ export function RichEditor({ value, onChange }: Props) {
         <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive("italic"))}><Italic className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btn(editor.isActive("strike"))}><Strikethrough className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleCode().run()} className={btn(editor.isActive("code"))}><Code className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={btn(editor.isActive("codeBlock"))} title="Bloco de código"><Code2 className="h-4 w-4" /></button>
         <span className="w-px bg-border mx-1" />
         <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={btn(editor.isActive("heading", { level: 1 }))}><Heading1 className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btn(editor.isActive("heading", { level: 2 }))}><Heading2 className="h-4 w-4" /></button>

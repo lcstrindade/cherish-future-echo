@@ -19,17 +19,22 @@ function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
+        <img
+          src="https://adm.bivvo.com.br/publicLogo?t=1778778948975"
+          alt="Bivvo"
+          className="h-8 mx-auto mb-6"
+        />
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Página não encontrada</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
+          A página que você procura não existe ou foi movida.
         </p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            Ir para a documentação
           </Link>
         </div>
       </div>
@@ -47,11 +52,16 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
+        <img
+          src="https://adm.bivvo.com.br/publicLogo?t=1778778948975"
+          alt="Bivvo"
+          className="h-8 mx-auto mb-6"
+        />
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+          Esta página não carregou
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+          Algo deu errado do nosso lado. Você pode tentar novamente ou voltar para a documentação.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -61,13 +71,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            Tentar novamente
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            Ir para o início
           </a>
         </div>
       </div>
@@ -80,14 +90,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Central de Ajuda Bivvo" },
+      {
+        name: "description",
+        content:
+          "Documentação e tutoriais oficiais do Bivvo — aprenda a usar o atendimento omnichannel, integrações e automações.",
+      },
+      { name: "author", content: "Bivvo" },
+      { property: "og:site_name", content: "Central de Ajuda Bivvo" },
+      { property: "og:title", content: "Central de Ajuda Bivvo" },
+      {
+        property: "og:description",
+        content:
+          "Documentação e tutoriais oficiais do Bivvo — aprenda a usar o atendimento omnichannel, integrações e automações.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
