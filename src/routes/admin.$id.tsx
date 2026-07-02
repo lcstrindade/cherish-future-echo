@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,12 @@ function AdminEditor() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [parentId, setParentId] = useState<string>("");
   const [icon, setIcon] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const skipAutosaveRef = useRef(true);
+  const currentIdRef = useRef<string>(id);
+  useEffect(() => { currentIdRef.current = id; }, [id]);
 
   const listAll = useServerFn(listAllArticlesAdmin);
   const { data: allArticles = [] } = useQuery({
@@ -95,6 +101,8 @@ function AdminEditor() {
       setSlugTouched(true);
       setParentId((r as { parent_id?: string | null }).parent_id ?? "");
       setIcon((r as { icon?: string | null }).icon ?? null);
+      setLastSavedAt(new Date());
+      skipAutosaveRef.current = true;
     });
   }, [id, isNew, getOne]);
 
@@ -123,6 +131,7 @@ function AdminEditor() {
       });
       setStatus(next);
       toast.success(next === "published" ? "Publicado!" : "Salvo");
+      setLastSavedAt(new Date());
       if (isNew && res) {
         navigate({ to: "/admin/$id", params: { id: (res as { id: string }).id } });
       }
@@ -133,13 +142,60 @@ function AdminEditor() {
     }
   }
 
+  // Autosave (only for existing articles)
+  useEffect(() => {
+    if (isNew) return;
+    if (skipAutosaveRef.current) { skipAutosaveRef.current = false; return; }
+    if (!title || !slug) return;
+    const t = setTimeout(async () => {
+      const runId = currentIdRef.current;
+      if (runId !== id) return;
+      setAutoSaving(true);
+      try {
+        await save({
+          data: {
+            id, title, slug,
+            excerpt: excerpt || null,
+            category: category || null,
+            subcategory: subcategory || null,
+            cover_image_url: coverUrl || null,
+            content, content_text: contentText,
+            status,
+            parent_id: parentId || null,
+            icon,
+          },
+        });
+        setLastSavedAt(new Date());
+      } catch {
+        // silent
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, slug, excerpt, category, subcategory, coverUrl, content, contentText, parentId, icon, status]);
+
+  // Tick "salvo há Xs"
+  useEffect(() => {
+    const i = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(i);
+  }, []);
+
+  const savedAgo = lastSavedAt ? formatAgo(now - lastSavedAt.getTime()) : null;
+
   return (
     <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">
           {isNew ? "Novo artigo" : "Editar artigo"}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          {!isNew && (
+            <span className="text-xs text-muted-foreground">
+              {autoSaving ? "Salvando..." : savedAgo ? `Salvo ${savedAgo}` : ""}
+            </span>
+          )}
           <Button
             variant="outline"
             onClick={() => onSave("draft")}
