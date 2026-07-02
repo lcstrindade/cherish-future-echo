@@ -17,7 +17,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as AdminIdRouteImport } from './routes/admin.$id'
-import { Route as ApiPublicHealthRouteImport } from './routes/api.public.health'
+import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
