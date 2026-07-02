@@ -1,6 +1,5 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { lowlight } from "@/lib/lowlight";
 import Link from "@tiptap/extension-link";
@@ -21,6 +20,9 @@ import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import Typography from "@tiptap/extension-typography";
 import CharacterCount from "@tiptap/extension-character-count";
+import { Callout, DetailsBlock, VideoEmbed, AlignableImage } from "@/lib/tiptap-extensions";
+import { useQuery } from "@tanstack/react-query";
+import { listPublishedArticles } from "@/lib/articles.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import {
@@ -29,7 +31,8 @@ import {
   Youtube as YoutubeIcon, Undo, Redo, Code2, Underline as UnderlineIcon,
   Subscript as SubIcon, Superscript as SupIcon, AlignLeft, AlignCenter,
   AlignRight, AlignJustify, ListChecks, Table as TableIcon, Highlighter,
-  Palette, Rows, Columns, Trash2, Eraser,
+  Palette, Rows, Columns, Trash2, Eraser, Info, AlertTriangle, CheckCircle2,
+  XCircle, Lightbulb, ChevronDown, Video, FileVideo, BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -52,15 +55,22 @@ const HIGHLIGHTS = [
 
 export function RichEditor({ value, onChange }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [linkQuery, setLinkQuery] = useState("");
   const uploadMedia = useServerFn(uploadArticleMedia);
   const uploadAtRef = useRef<(file: File, pos?: number) => void>(() => {});
+  const { data: allArticles = [] } = useQuery({
+    queryKey: ["docs-sidebar"],
+    queryFn: () => listPublishedArticles(),
+    staleTime: 60_000,
+  });
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
-      Image.configure({ inline: false, allowBase64: false }),
+      AlignableImage.configure({ inline: false, allowBase64: false }),
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: "Escreva seu artigo..." }),
       Youtube.configure({ width: 640, height: 360, nocookie: true }),
@@ -79,6 +89,9 @@ export function RichEditor({ value, onChange }: Props) {
       TaskList,
       TaskItem.configure({ nested: true }),
       CharacterCount,
+      Callout,
+      DetailsBlock,
+      VideoEmbed,
     ],
     content: value || "",
     onUpdate: ({ editor }) => onChange(editor.getJSON(), editor.getText()),
@@ -148,6 +161,37 @@ export function RichEditor({ value, onChange }: Props) {
 
   uploadAtRef.current = handleImageUpload;
 
+  async function handleVideoUpload(file: File) {
+    if (!editor) return;
+    setUploading(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      const CHUNK = 8192;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(
+          null,
+          Array.from(bytes.subarray(i, i + CHUNK)),
+        );
+      }
+      const dataBase64 = btoa(binary);
+      const { url } = await uploadMedia({
+        data: {
+          filename: file.name,
+          contentType: file.type || "video/mp4",
+          dataBase64,
+        },
+      });
+      editor.chain().focus().setVideo({ src: url }).run();
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao enviar vídeo: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   if (!editor) return null;
 
   function addYouTube() {
@@ -162,8 +206,35 @@ export function RichEditor({ value, onChange }: Props) {
     editor!.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }
 
+  function insertInternalLink(slug: string, title: string) {
+    editor!
+      .chain()
+      .focus()
+      .insertContent(
+        `<a href="/docs/${slug}" data-internal="true">${title}</a>`,
+      )
+      .run();
+  }
+
+  function setImageAlign(align: "left" | "center" | "right" | null) {
+    editor!.chain().focus().updateAttributes("image", { align }).run();
+  }
+
   const btn = (active: boolean) =>
     `p-2 rounded hover:bg-accent ${active ? "bg-accent text-accent-foreground" : ""}`;
+
+  const CALLOUTS: Array<{ id: "info"|"tip"|"success"|"warn"|"danger"; label: string; Icon: typeof Info }> = [
+    { id: "info", label: "Informação", Icon: Info },
+    { id: "tip", label: "Dica", Icon: Lightbulb },
+    { id: "success", label: "Sucesso", Icon: CheckCircle2 },
+    { id: "warn", label: "Aviso", Icon: AlertTriangle },
+    { id: "danger", label: "Perigo", Icon: XCircle },
+  ];
+  const filteredArticles = linkQuery.trim()
+    ? allArticles.filter((a) =>
+        a.title.toLowerCase().includes(linkQuery.toLowerCase()),
+      ).slice(0, 8)
+    : allArticles.slice(0, 8);
 
   return (
     <div className="border rounded-md bg-background">
@@ -222,6 +293,60 @@ export function RichEditor({ value, onChange }: Props) {
         <button type="button" onClick={addLink} className={btn(editor.isActive("link"))}><LinkIcon className="h-4 w-4" /></button>
         <button type="button" onClick={() => fileInput.current?.click()} className={btn(false)} disabled={uploading}><ImageIcon className="h-4 w-4" /></button>
         <button type="button" onClick={addYouTube} className={btn(false)}><YoutubeIcon className="h-4 w-4" /></button>
+        <button type="button" onClick={() => videoInput.current?.click()} className={btn(false)} disabled={uploading} title="Enviar vídeo (MP4)"><FileVideo className="h-4 w-4" /></button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className={btn(false)} title="Link para artigo"><BookOpen className="h-4 w-4" /></button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-2">
+            <input
+              autoFocus
+              value={linkQuery}
+              onChange={(e) => setLinkQuery(e.target.value)}
+              placeholder="Buscar artigo..."
+              className="w-full h-8 px-2 rounded border bg-background text-sm mb-2"
+            />
+            <div className="max-h-64 overflow-y-auto space-y-0.5">
+              {filteredArticles.length === 0 && (
+                <div className="text-xs text-muted-foreground px-2 py-1">Nenhum artigo</div>
+              )}
+              {filteredArticles.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => { insertInternalLink(a.slug, a.title); setLinkQuery(""); }}
+                  className="w-full text-left text-sm px-2 py-1 rounded hover:bg-accent truncate"
+                >
+                  {a.title}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className={btn(editor.isActive("callout"))} title="Callout / Aviso"><Info className="h-4 w-4" /></button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-1">
+            {CALLOUTS.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => editor.chain().focus().toggleCallout(id).run()}
+                className="w-full flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-accent"
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            ))}
+            {editor.isActive("callout") && (
+              <>
+                <div className="h-px bg-border my-1" />
+                <button type="button" onClick={() => editor.chain().focus().unsetCallout().run()} className="w-full flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-accent text-muted-foreground"><Eraser className="h-3 w-3" /> Remover</button>
+              </>
+            )}
+          </PopoverContent>
+        </Popover>
+        <button type="button" onClick={() => editor.chain().focus().insertDetails().run()} className={btn(editor.isActive("detailsBlock"))} title="Bloco recolhível"><ChevronDown className="h-4 w-4" /></button>
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" className={btn(editor.isActive("table"))} title="Tabela"><TableIcon className="h-4 w-4" /></button>
@@ -253,8 +378,28 @@ export function RichEditor({ value, onChange }: Props) {
             e.target.value = "";
           }}
         />
+        <input
+          ref={videoInput}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleVideoUpload(f);
+            e.target.value = "";
+          }}
+        />
       </div>
       <EditorContent editor={editor} />
+      {editor.isActive("image") && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
+          <span className="text-muted-foreground">Imagem:</span>
+          <button type="button" onClick={() => setImageAlign("left")} className={btn(false)} title="Esquerda"><AlignLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setImageAlign("center")} className={btn(false)} title="Centro"><AlignCenter className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setImageAlign("right")} className={btn(false)} title="Direita"><AlignRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setImageAlign(null)} className={btn(false)} title="Padrão"><Eraser className="h-4 w-4" /></button>
+        </div>
+      )}
       {editor.isActive("codeBlock") && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
           <span className="text-muted-foreground">Linguagem:</span>

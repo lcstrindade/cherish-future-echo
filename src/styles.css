@@ -208,3 +208,59 @@
 .ProseMirror pre .hljs-title { color: #60a5fa; }
 .ProseMirror pre .hljs-variable,
 .ProseMirror pre .hljs-name { color: #f8fafc; }
+
+/* Callouts */
+.callout {
+  border-left: 4px solid;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  background: #f8fafc;
+}
+.callout > :first-child { margin-top: 0; }
+.callout > :last-child { margin-bottom: 0; }
+.callout-info { border-color: #2563eb; background: #eff6ff; }
+.callout-tip { border-color: #7c3aed; background: #f5f3ff; }
+.callout-success { border-color: #16a34a; background: #f0fdf4; }
+.callout-warn { border-color: #ca8a04; background: #fefce8; }
+.callout-danger { border-color: #dc2626; background: #fef2f2; }
+
+/* Toggle / details */
+.toggle-block {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.875rem;
+  margin: 1rem 0;
+  background: #fafafa;
+}
+.toggle-block > summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  outline: none;
+}
+.toggle-block > summary::-webkit-details-marker { display: none; }
+.toggle-block > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.5rem;
+  transition: transform 0.15s;
+}
+.toggle-block[open] > summary::before { transform: rotate(90deg); }
+.toggle-block .toggle-content { padding-top: 0.5rem; }
+
+/* Video */
+.tiptap-video {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 1rem 0;
+  display: block;
+}
+
+/* Image alignment */
+.ProseMirror img.img-align-left,
+.prose img.img-align-left { float: left; margin-right: 1rem; max-width: 50%; }
+.ProseMirror img.img-align-right,
+.prose img.img-align-right { float: right; margin-left: 1rem; max-width: 50%; }
+.ProseMirror img.img-align-center,
+.prose img.img-align-center { display: block; margin-left: auto; margin-right: auto; }
