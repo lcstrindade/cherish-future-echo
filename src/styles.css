@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "highlight.js/styles/github.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -170,3 +171,40 @@
   padding: 0 2px;
   border-radius: 2px;
 }
+.ProseMirror code:not(pre code) {
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.ProseMirror pre {
+  background: #0f172a;
+  color: #f1f5f9;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.ProseMirror pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+/* highlight.js github theme overrides for dark pre */
+.ProseMirror pre .hljs-keyword,
+.ProseMirror pre .hljs-selector-tag,
+.ProseMirror pre .hljs-built_in { color: #f472b6; }
+.ProseMirror pre .hljs-string,
+.ProseMirror pre .hljs-attr { color: #86efac; }
+.ProseMirror pre .hljs-number,
+.ProseMirror pre .hljs-literal { color: #fbbf24; }
+.ProseMirror pre .hljs-comment { color: #94a3b8; font-style: italic; }
+.ProseMirror pre .hljs-function,
+.ProseMirror pre .hljs-title { color: #60a5fa; }
+.ProseMirror pre .hljs-variable,
+.ProseMirror pre .hljs-name { color: #f8fafc; }
