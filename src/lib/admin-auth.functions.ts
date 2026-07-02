@@ -41,8 +41,7 @@ export const adminLogin = createServerFn({ method: "POST" })
     const u = process.env.ADMIN_USERNAME;
     const p = process.env.ADMIN_PASSWORD;
     if (!u || !p) throw new Error("Admin credentials not configured");
-    const session = await useSession<AdminSession>(sessionConfig());
-    const key = session.id ?? "anon";
+    const key = data.username;
     const now = Date.now();
     const rec = attempts.get(key);
     if (rec && rec.until > now && rec.count >= MAX_ATTEMPTS) {
@@ -55,6 +54,7 @@ export const adminLogin = createServerFn({ method: "POST" })
       attempts.set(key, next);
       return { ok: false as const };
     }
+    const session = await useSession<AdminSession>(sessionConfig());
     attempts.delete(key);
     await session.update({ isAdmin: true });
     return { ok: true as const };
