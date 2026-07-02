@@ -293,6 +293,60 @@ export function RichEditor({ value, onChange }: Props) {
         <button type="button" onClick={addLink} className={btn(editor.isActive("link"))}><LinkIcon className="h-4 w-4" /></button>
         <button type="button" onClick={() => fileInput.current?.click()} className={btn(false)} disabled={uploading}><ImageIcon className="h-4 w-4" /></button>
         <button type="button" onClick={addYouTube} className={btn(false)}><YoutubeIcon className="h-4 w-4" /></button>
+        <button type="button" onClick={() => videoInput.current?.click()} className={btn(false)} disabled={uploading} title="Enviar vídeo (MP4)"><FileVideo className="h-4 w-4" /></button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className={btn(false)} title="Link para artigo"><BookOpen className="h-4 w-4" /></button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-2">
+            <input
+              autoFocus
+              value={linkQuery}
+              onChange={(e) => setLinkQuery(e.target.value)}
+              placeholder="Buscar artigo..."
+              className="w-full h-8 px-2 rounded border bg-background text-sm mb-2"
+            />
+            <div className="max-h-64 overflow-y-auto space-y-0.5">
+              {filteredArticles.length === 0 && (
+                <div className="text-xs text-muted-foreground px-2 py-1">Nenhum artigo</div>
+              )}
+              {filteredArticles.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => { insertInternalLink(a.slug, a.title); setLinkQuery(""); }}
+                  className="w-full text-left text-sm px-2 py-1 rounded hover:bg-accent truncate"
+                >
+                  {a.title}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className={btn(editor.isActive("callout"))} title="Callout / Aviso"><Info className="h-4 w-4" /></button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-1">
+            {CALLOUTS.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => editor.chain().focus().toggleCallout(id).run()}
+                className="w-full flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-accent"
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            ))}
+            {editor.isActive("callout") && (
+              <>
+                <div className="h-px bg-border my-1" />
+                <button type="button" onClick={() => editor.chain().focus().unsetCallout().run()} className="w-full flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-accent text-muted-foreground"><Eraser className="h-3 w-3" /> Remover</button>
+              </>
+            )}
+          </PopoverContent>
+        </Popover>
+        <button type="button" onClick={() => editor.chain().focus().insertDetails().run()} className={btn(editor.isActive("detailsBlock"))} title="Bloco recolhível"><ChevronDown className="h-4 w-4" /></button>
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" className={btn(editor.isActive("table"))} title="Tabela"><TableIcon className="h-4 w-4" /></button>
@@ -324,8 +378,28 @@ export function RichEditor({ value, onChange }: Props) {
             e.target.value = "";
           }}
         />
+        <input
+          ref={videoInput}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleVideoUpload(f);
+            e.target.value = "";
+          }}
+        />
       </div>
       <EditorContent editor={editor} />
+      {editor.isActive("image") && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
+          <span className="text-muted-foreground">Imagem:</span>
+          <button type="button" onClick={() => setImageAlign("left")} className={btn(false)} title="Esquerda"><AlignLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setImageAlign("center")} className={btn(false)} title="Centro"><AlignCenter className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setImageAlign("right")} className={btn(false)} title="Direita"><AlignRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setImageAlign(null)} className={btn(false)} title="Padrão"><Eraser className="h-4 w-4" /></button>
+        </div>
+      )}
       {editor.isActive("codeBlock") && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
           <span className="text-muted-foreground">Linguagem:</span>
