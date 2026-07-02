@@ -57,6 +57,7 @@ const HIGHLIGHTS = [
 export function RichEditor({ value, onChange }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false);
   const [linkQuery, setLinkQuery] = useState("");
   const [slash, setSlash] = useState<{
@@ -77,7 +78,9 @@ export function RichEditor({ value, onChange }: Props) {
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      // StarterKit v3 already ships Link and Underline — disable them so our
+      // configured versions win instead of triggering duplicate-extension warnings.
+      StarterKit.configure({ codeBlock: false, link: false, underline: false }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
       AlignableImage.configure({ inline: false, allowBase64: false }),
       Link.configure({ openOnClick: false, autolink: true }),
@@ -112,7 +115,7 @@ export function RichEditor({ value, onChange }: Props) {
         const query = paraText.slice(1);
         const start = $from.start();
         const coords = editor.view.coordsAtPos(start);
-        const container = editor.view.dom.getBoundingClientRect();
+        const container = (wrapperRef.current ?? editor.view.dom).getBoundingClientRect();
         setSlash({
           open: true,
           query,
@@ -320,7 +323,7 @@ export function RichEditor({ value, onChange }: Props) {
     : allArticles.slice(0, 8);
 
   return (
-    <div className="border rounded-md bg-background relative">
+    <div ref={wrapperRef} className="border rounded-md bg-background relative">
       <div className="flex flex-wrap gap-1 border-b p-2 sticky top-0 bg-background z-10">
         <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive("bold"))}><Bold className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive("italic"))}><Italic className="h-4 w-4" /></button>
@@ -495,10 +498,10 @@ export function RichEditor({ value, onChange }: Props) {
       {editor.isActive("image") && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
           <span className="text-muted-foreground">Imagem:</span>
-          <button type="button" onClick={() => setImageAlign("left")} className={btn(false)} title="Esquerda"><AlignLeft className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setImageAlign("center")} className={btn(false)} title="Centro"><AlignCenter className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setImageAlign("right")} className={btn(false)} title="Direita"><AlignRight className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setImageAlign(null)} className={btn(false)} title="Padrão"><Eraser className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign("left")} className={btn(false)} title="Esquerda"><AlignLeft className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign("center")} className={btn(false)} title="Centro"><AlignCenter className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign("right")} className={btn(false)} title="Direita"><AlignRight className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign(null)} className={btn(false)} title="Padrão"><Eraser className="h-4 w-4" /></button>
         </div>
       )}
       {editor.isActive("codeBlock") && (

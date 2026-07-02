@@ -24,7 +24,7 @@ export function ArticleRenderer({ content }: { content: unknown }) {
   const editor = useEditor({
     editable: false,
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      StarterKit.configure({ codeBlock: false, link: false, underline: false }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
       AlignableImage,
       Link.configure({ openOnClick: true }),
