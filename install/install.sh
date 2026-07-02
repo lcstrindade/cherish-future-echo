@@ -2,7 +2,10 @@
 # ============================================================================
 #  Bivvo Docs — Auto-instalador com interface interativa
 #
-#  Rodar direto (uma linha):
+#  Rodar direto (recomendado):
+#    curl -fsSL -o /tmp/bivvo-docs-install.sh https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh && sudo bash /tmp/bivvo-docs-install.sh
+#
+#  Também suporta pipe:
 #    curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh | sudo bash
 #
 #  Rodar de um clone local:
