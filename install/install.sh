@@ -15,6 +15,12 @@
 # ============================================================================
 set -Eeuo pipefail
 
+# Reanexa stdin ao terminal quando o script é executado via pipe
+# (ex.: `curl ... | sudo bash`), senão `read` recebe EOF e o menu fecha sozinho.
+if [ ! -t 0 ] && [ -r /dev/tty ]; then
+  exec </dev/tty
+fi
+
 REPO_URL="${REPO_URL:-https://github.com/lcstrindade/cherish-future-echo.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 DEFAULT_INSTALL_DIR="${DEFAULT_INSTALL_DIR:-/opt/bivvo-docs}"
