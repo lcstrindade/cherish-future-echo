@@ -126,8 +126,10 @@ export const DetailsBlock = Node.create({
       summary.textContent = node.attrs.summary || "Detalhes";
       summary.addEventListener("input", () => {
         if (typeof getPos !== "function") return;
+        const pos = getPos();
+        if (typeof pos !== "number") return;
         editor.view.dispatch(
-          editor.view.state.tr.setNodeMarkup(getPos(), undefined, {
+          editor.view.state.tr.setNodeMarkup(pos, undefined, {
             ...node.attrs,
             summary: summary.textContent || "",
           }),
