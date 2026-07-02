@@ -226,6 +226,38 @@ export const deleteArticle = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const backfillEmbeddings = createServerFn({ method: "POST" })
+  .middleware([requireAdminSession])
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { embedText } = await import("./ai-gateway.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("articles")
+      .select("id, title, excerpt, content_text, embedding")
+      .is("embedding", null);
+    if (error) throw new Error(error.message);
+    let updated = 0;
+    for (const r of (rows ?? []) as {
+      id: string; title: string; excerpt: string | null; content_text: string;
+    }[]) {
+      const text = `${r.title}\n\n${r.excerpt ?? ""}\n\n${r.content_text ?? ""}`.trim();
+      if (!text) continue;
+      try {
+        const emb = await embedText(text);
+        if (!emb?.length) continue;
+        const { error: upErr } = await supabaseAdmin
+          .from("articles")
+          .update({ embedding: emb as unknown as string } as never)
+          .eq("id", r.id);
+        if (upErr) throw upErr;
+        updated += 1;
+      } catch (e) {
+        console.error("backfill embed failed", r.id, e);
+      }
+    }
+    return { updated, total: rows?.length ?? 0 };
+  });
+
 export const createMediaSignedUrl = createServerFn({ method: "POST" })
   .middleware([requireAdminSession])
   .inputValidator((d: unknown) => z.object({ path: z.string().min(1) }).parse(d))
