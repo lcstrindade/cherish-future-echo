@@ -92,15 +92,16 @@ if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.j
     mkdir -p "$(dirname "$APP_DIR")"
     run "Clonando $REPO_URL em $APP_DIR" git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
   fi
-  if [ -r /dev/tty ]; then
-    exec bash "$APP_DIR/install/install.sh" </dev/tty
+  SCRIPT_DIR="$APP_DIR/install"
+  cd "$APP_DIR"
+  if [ -r /dev/tty ] && [ ! -t 0 ]; then
+    exec < /dev/tty
   fi
-  exec bash "$APP_DIR/install/install.sh"
+else
+  SCRIPT_DIR="$(cd "$(dirname "$_SRC")" && pwd)"
+  APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  cd "$APP_DIR"
 fi
-
-SCRIPT_DIR="$(cd "$(dirname "$_SRC")" && pwd)"
-APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$APP_DIR"
 
 # ---------- dependency management ------------------------------------------
 APT_UPDATED=0
