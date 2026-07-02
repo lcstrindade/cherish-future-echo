@@ -27,6 +27,18 @@ export function ArticleToc({
     const container = containerRef.current;
     if (!container) return;
     let observer: IntersectionObserver | null = null;
+    let headingsRef: HTMLHeadingElement[] = [];
+
+    const computeActiveByScroll = () => {
+      if (headingsRef.length === 0) return;
+      const offset = 100; // matches rootMargin top
+      let current = headingsRef[0];
+      for (const h of headingsRef) {
+        if (h.getBoundingClientRect().top - offset <= 0) current = h;
+        else break;
+      }
+      if (current && current.id) setActiveId((prev) => (prev === current.id ? prev : current.id));
+    };
 
     const scan = () => {
       const headings = Array.from(
@@ -66,18 +78,25 @@ export function ArticleToc({
                 a.boundingClientRect.top - b.boundingClientRect.top,
             );
           if (visible[0]) setActiveId((visible[0].target as HTMLElement).id);
+          else computeActiveByScroll();
         },
         { rootMargin: "-90px 0px -65% 0px", threshold: [0, 1] },
       );
       headings.forEach((h) => observer!.observe(h));
+      headingsRef = headings;
+      // Initialize active based on current scroll position.
+      computeActiveByScroll();
     };
 
     scan();
     const mo = new MutationObserver(() => scan());
     mo.observe(container, { childList: true, subtree: true });
+    const onScroll = () => computeActiveByScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       mo.disconnect();
       observer?.disconnect();
+      window.removeEventListener("scroll", onScroll);
     };
   }, [containerRef]);
 
