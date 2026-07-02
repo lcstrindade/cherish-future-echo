@@ -1,46 +1,93 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Bivvo Docs — Auto-instalador
-# Uso rápido (uma linha, clona o repo automaticamente):
-#   curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh | sudo bash
+#  Bivvo Docs — Auto-instalador com interface interativa
 #
-# Uso a partir de um clone existente:
-#   sudo bash install/install.sh
+#  Rodar direto (uma linha):
+#    curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh | sudo bash
 #
-# O script:
-#  1. Se rodado fora de um clone, faz git clone do repositório oficial
-#  2. Verifica dependências (git, node >=20, bun, nginx, openssl)
-#  3. Coleta credenciais interativamente (Supabase, admin, domínio)
-#  4. Descobre uma porta local livre (não conflita com outros vhosts/nginx)
-#  5. Gera .env, faz build (Nitro node-server) e instala serviço systemd
-#  6. Publica vhost Nginx apontando o domínio -> 127.0.0.1:PORTA
-#  7. (opcional) Emite certificado Let's Encrypt via certbot --nginx
+#  Rodar de um clone local:
+#    sudo bash install/install.sh
+#
+#  O instalador mostra tudo o que está fazendo, checa pré-requisitos,
+#  instala/atualiza o que faltar, e oferece um menu com:
+#    1) Instalar        2) Atualizar        3) Status
+#    4) Reiniciar       5) Renovar SSL      6) Desinstalar     0) Sair
 # ============================================================================
-set -euo pipefail
+set -Eeuo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/lcstrindade/cherish-future-echo.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
-INSTALL_ROOT="${INSTALL_ROOT:-/opt}"
+DEFAULT_INSTALL_DIR="${DEFAULT_INSTALL_DIR:-/opt/bivvo-docs}"
+STATE_DIR="/etc/bivvo-docs"
 
-# Se o script foi baixado solto (curl | bash), $BASH_SOURCE aponta pra /dev/stdin.
-# Nesse caso, clonamos o repo e reexecutamos o install.sh de dentro dele.
+# ---------- UI helpers ------------------------------------------------------
+if [ -t 1 ]; then
+  C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_B=$'\033[34m'
+  C_M=$'\033[35m'; C_C=$'\033[36m'; C_W=$'\033[37m'; C_D=$'\033[2m'
+  C_BLD=$'\033[1m'; C_N=$'\033[0m'
+else
+  C_R=""; C_G=""; C_Y=""; C_B=""; C_M=""; C_C=""; C_W=""; C_D=""; C_BLD=""; C_N=""
+fi
+
+banner() {
+  clear || true
+  cat <<EOF
+${C_C}${C_BLD}
+ ╔══════════════════════════════════════════════════════════════════╗
+ ║                                                                  ║
+ ║        Bivvo Docs  ·  Auto-instalador                            ║
+ ║        Central de Ajuda / Documentação self-hosted               ║
+ ║                                                                  ║
+ ╚══════════════════════════════════════════════════════════════════╝
+${C_N}
+EOF
+}
+
+section() { printf "\n${C_B}${C_BLD}▎ %s${C_N}\n" "$*"; }
+step()    { printf "  ${C_C}➜${C_N} %s\n" "$*"; }
+ok()      { printf "  ${C_G}✔${C_N} %s\n" "$*"; }
+warn()    { printf "  ${C_Y}⚠${C_N} %s\n" "$*"; }
+err()     { printf "  ${C_R}✘${C_N} %s\n" "$*" >&2; }
+die()     { err "$*"; exit 1; }
+
+run() { # run "descrição" cmd args...
+  local desc="$1"; shift
+  step "$desc"
+  if "$@" >/tmp/bivvo-install.log 2>&1; then
+    ok  "$desc"
+  else
+    err "$desc — falhou"
+    printf "${C_D}"; tail -n 20 /tmp/bivvo-install.log; printf "${C_N}"
+    exit 1
+  fi
+}
+
+ask()        { local __v="$1" __q="$2" __d="${3:-}" __x
+               if [ -n "$__d" ]; then read -rp "  $__q [${C_D}$__d${C_N}]: " __x || true; __x="${__x:-$__d}"
+               else while [ -z "${__x:-}" ]; do read -rp "  $__q: " __x || true; done; fi
+               printf -v "$__v" '%s' "$__x"; }
+ask_secret() { local __v="$1" __q="$2" __x
+               while [ -z "${__x:-}" ]; do read -rsp "  $__q: " __x; echo; done
+               printf -v "$__v" '%s' "$__x"; }
+confirm()    { local ans; read -rp "  $1 [y/N]: " ans || true; [[ "${ans:-n}" =~ ^[yY]$ ]]; }
+
+need_root() { [ "$(id -u)" -eq 0 ] || die "Rode como root (sudo)."; }
+
+# ---------- self-bootstrap (curl | sudo bash) ------------------------------
 _SRC="${BASH_SOURCE[0]:-}"
 if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.json" ]; then
-  if [ "$(id -u)" -ne 0 ]; then
-    echo "Rode como root: curl -fsSL <url> | sudo bash"; exit 1
-  fi
-  command -v git >/dev/null || { apt-get update -y && apt-get install -y git; }
-  read -rp "Diretório de instalação [$INSTALL_ROOT/bivvo-docs]: " _dir || true
-  APP_DIR="${_dir:-$INSTALL_ROOT/bivvo-docs}"
+  banner
+  section "Bootstrap"
+  need_root
+  step "Instalando git (se necessário) e clonando o repositório"
+  command -v git >/dev/null || { apt-get update -y >/dev/null 2>&1 || true; apt-get install -y git >/dev/null; }
+  ask APP_DIR "Diretório de instalação" "$DEFAULT_INSTALL_DIR"
   if [ -d "$APP_DIR/.git" ]; then
-    echo "==> Repositório já existe em $APP_DIR — atualizando"
-    git -C "$APP_DIR" fetch --all --prune
-    git -C "$APP_DIR" checkout "$REPO_BRANCH"
-    git -C "$APP_DIR" pull --ff-only
+    run "Atualizando repositório existente em $APP_DIR" \
+      bash -c "git -C '$APP_DIR' fetch --all --prune && git -C '$APP_DIR' checkout '$REPO_BRANCH' && git -C '$APP_DIR' pull --ff-only"
   else
-    echo "==> Clonando $REPO_URL em $APP_DIR"
     mkdir -p "$(dirname "$APP_DIR")"
-    git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
+    run "Clonando $REPO_URL em $APP_DIR" git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
   fi
   exec bash "$APP_DIR/install/install.sh"
 fi
@@ -49,112 +96,134 @@ SCRIPT_DIR="$(cd "$(dirname "$_SRC")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$APP_DIR"
 
-c_red()  { printf '\033[31m%s\033[0m\n' "$*"; }
-c_grn()  { printf '\033[32m%s\033[0m\n' "$*"; }
-c_ylw()  { printf '\033[33m%s\033[0m\n' "$*"; }
-c_bld()  { printf '\033[1m%s\033[0m\n' "$*"; }
-
-require_root() {
-  if [ "$(id -u)" -ne 0 ]; then
-    c_red "Rode como root: sudo bash install/install.sh"; exit 1
-  fi
+# ---------- dependency management ------------------------------------------
+APT_UPDATED=0
+apt_install() { # apt_install pkg1 pkg2...
+  [ $APT_UPDATED -eq 0 ] && { run "Atualizando índice apt" apt-get update -y; APT_UPDATED=1; }
+  run "Instalando pacote(s): $*" apt-get install -y "$@"
 }
 
-ask() { # ask VAR "pergunta" "default"
-  local __var="$1" __q="$2" __def="${3:-}" __val
-  if [ -n "$__def" ]; then
-    read -rp "$__q [$__def]: " __val || true
-    __val="${__val:-$__def}"
+ensure_node20() {
+  if command -v node >/dev/null; then
+    local v; v="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
+    if [ "$v" -ge 20 ]; then ok "Node.js $(node -v) já instalado"; return; fi
+    warn "Node.js $(node -v) é antigo — atualizando para 20.x"
   else
-    while [ -z "${__val:-}" ]; do read -rp "$__q: " __val || true; done
+    step "Node.js ausente — instalando 20.x via NodeSource"
   fi
-  printf -v "$__var" '%s' "$__val"
+  run "Baixando setup NodeSource 20.x" bash -c 'curl -fsSL https://deb.nodesource.com/setup_20.x | bash -'
+  apt_install nodejs
+  ok "Node.js $(node -v) instalado"
 }
 
-ask_secret() { # ask_secret VAR "pergunta"
-  local __var="$1" __q="$2" __val
-  while [ -z "${__val:-}" ]; do
-    read -rsp "$__q: " __val; echo
-  done
-  printf -v "$__var" '%s' "$__val"
+ensure_bun() {
+  if command -v bun >/dev/null; then ok "Bun $(bun -v) já instalado"; return; fi
+  step "Instalando Bun (runtime JS)"
+  run "Baixando bun" bash -c 'curl -fsSL https://bun.sh/install | bash'
+  export PATH="$HOME/.bun/bin:$PATH"
+  [ -x "$HOME/.bun/bin/bun" ] && ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun
+  ok "Bun $(bun -v) instalado"
 }
 
-# --- 1) Dependências --------------------------------------------------------
-check_deps() {
-  c_bld "==> Verificando dependências"
-  local missing=()
-  command -v git     >/dev/null || missing+=("git")
-  command -v node    >/dev/null || missing+=("nodejs>=20")
-  command -v nginx   >/dev/null || missing+=("nginx")
-  command -v openssl >/dev/null || missing+=("openssl")
-  command -v ss      >/dev/null || missing+=("iproute2")
-  if [ ${#missing[@]} -gt 0 ]; then
-    c_red "Faltando: ${missing[*]}"
-    c_ylw "No Debian/Ubuntu: apt update && apt install -y git nodejs nginx openssl iproute2"
-    exit 1
+ensure_deps() {
+  section "Checando dependências do sistema"
+  local pkgs=()
+  command -v git     >/dev/null || pkgs+=(git)
+  command -v nginx   >/dev/null || pkgs+=(nginx)
+  command -v openssl >/dev/null || pkgs+=(openssl)
+  command -v ss      >/dev/null || pkgs+=(iproute2)
+  command -v curl    >/dev/null || pkgs+=(curl)
+  command -v ca-certificates >/dev/null 2>&1 || pkgs+=(ca-certificates)
+  if [ ${#pkgs[@]} -gt 0 ]; then
+    warn "Faltando: ${pkgs[*]} — instalando"
+    apt_install "${pkgs[@]}"
+  else
+    ok "git, nginx, openssl, iproute2, curl já presentes"
   fi
-  if ! command -v bun >/dev/null; then
-    c_ylw "bun não encontrado — instalando..."
-    curl -fsSL https://bun.sh/install | bash
-    export PATH="$HOME/.bun/bin:$PATH"
-  fi
-  local node_major
-  node_major="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
-  if [ "$node_major" -lt 20 ]; then
-    c_red "Node.js 20+ é obrigatório (encontrado: $(node -v))"; exit 1
-  fi
-  c_grn "OK"
+  ensure_node20
+  ensure_bun
 }
 
-# --- 2) Descobrir porta livre ----------------------------------------------
-# Considera portas usadas por (a) qualquer processo em LISTEN e
-# (b) qualquer 'proxy_pass http://127.0.0.1:PORT' em /etc/nginx.
+# ---------- port discovery --------------------------------------------------
 find_free_port() {
-  local start="${1:-3000}" end="${2:-3999}" p
-  local used
-  used="$(
-    { ss -tlnH 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}';
-      grep -rhoE 'proxy_pass[[:space:]]+https?://(127\.0\.0\.1|localhost):[0-9]+' /etc/nginx 2>/dev/null \
-        | grep -oE '[0-9]+$';
-    } | sort -u
-  )"
+  local start="${1:-3000}" end="${2:-3999}" p used
+  used="$( { ss -tlnH 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}';
+             grep -rhoE 'proxy_pass[[:space:]]+https?://(127\.0\.0\.1|localhost):[0-9]+' /etc/nginx 2>/dev/null | grep -oE '[0-9]+$';
+           } | sort -u )"
   for ((p=start; p<=end; p++)); do
-    if ! grep -qx "$p" <<<"$used"; then echo "$p"; return; fi
+    grep -qx "$p" <<<"$used" || { echo "$p"; return; }
   done
-  c_red "Nenhuma porta livre entre $start e $end"; exit 1
+  die "Nenhuma porta livre entre $start e $end"
 }
 
-# --- 3) Coleta ---------------------------------------------------------------
-collect_inputs() {
-  c_bld "==> Configuração"
-  ask PROJECT      "Nome do projeto (slug, ex: bivvo-docs)" "bivvo-docs"
-  ask DOMAIN       "Domínio (ex: docs.seusite.com.br)"
-  ask APP_USER     "Usuário do sistema que rodará o serviço" "www-data"
+# ---------- state (para update/uninstall) -----------------------------------
+save_state() {
+  mkdir -p "$STATE_DIR"
+  cat > "$STATE_DIR/$PROJECT.env" <<EOF
+PROJECT=$PROJECT
+DOMAIN=$DOMAIN
+APP_DIR=$APP_DIR
+APP_USER=$APP_USER
+PORT=$PORT
+EOF
+  chmod 600 "$STATE_DIR/$PROJECT.env"
+}
+load_state() { # load_state <projeto>
+  local f="$STATE_DIR/$1.env"; [ -f "$f" ] || die "Instalação '$1' não encontrada em $STATE_DIR"
+  # shellcheck disable=SC1090
+  source "$f"
+}
+list_installs() {
+  [ -d "$STATE_DIR" ] || { echo "  (nenhuma instalação registrada)"; return 1; }
+  local found=0
+  for f in "$STATE_DIR"/*.env; do
+    [ -f "$f" ] || continue
+    ( # shellcheck disable=SC1090
+      source "$f"; printf "  ${C_G}•${C_N} %-20s  %-30s  porta %s\n" "$PROJECT" "$DOMAIN" "$PORT" )
+    found=1
+  done
+  [ $found -eq 0 ] && { echo "  (nenhuma instalação registrada)"; return 1; }
+  return 0
+}
+pick_install() {
+  list_installs || return 1
+  local sel; ask sel "Slug do projeto"
+  load_state "$sel"
+}
 
-  echo
-  c_bld "-- Supabase --"
-  ask SUPABASE_URL              "SUPABASE_URL (ex: https://xxxx.supabase.co)"
-  ask SUPABASE_PUBLISHABLE_KEY  "SUPABASE_PUBLISHABLE_KEY (anon key)"
+# ---------- fluxo: instalar -------------------------------------------------
+collect_inputs() {
+  section "Configuração da instância"
+  ask PROJECT      "Nome do projeto (slug único)" "bivvo-docs"
+  ask DOMAIN       "Domínio público (ex: docs.seusite.com.br)"
+  ask APP_USER     "Usuário do sistema" "www-data"
+
+  section "Credenciais do Supabase"
+  ask SUPABASE_URL             "SUPABASE_URL"
+  ask SUPABASE_PUBLISHABLE_KEY "SUPABASE_PUBLISHABLE_KEY (anon)"
   ask_secret SUPABASE_SERVICE_ROLE_KEY "SUPABASE_SERVICE_ROLE_KEY (secreto)"
 
-  echo
-  c_bld "-- Admin --"
+  section "Credenciais do admin do painel"
   ask ADMIN_USERNAME "Usuário admin" "admin"
   ask_secret ADMIN_PASSWORD "Senha admin"
 
-  echo
-  c_bld "-- Opcional --"
+  section "Opcional"
   ask LOVABLE_API_KEY "LOVABLE_API_KEY (embeddings — enter para pular)" " "
   [ "$LOVABLE_API_KEY" = " " ] && LOVABLE_API_KEY=""
 
   SESSION_SECRET="$(openssl rand -hex 32)"
   PORT="$(find_free_port 3000 3999)"
-  c_grn "Porta livre escolhida: $PORT"
+  ok "Porta local livre escolhida: $PORT"
+
+  echo
+  section "Resumo"
+  printf "  Projeto : %s\n  Domínio : %s\n  Porta   : %s\n  Dir     : %s\n  Usuário : %s\n" \
+    "$PROJECT" "$DOMAIN" "$PORT" "$APP_DIR" "$APP_USER"
+  confirm "Confirma e prossegue com o deploy?" || die "Abortado pelo usuário."
 }
 
-# --- 4) .env ----------------------------------------------------------------
 write_env() {
-  c_bld "==> Gravando .env em $APP_DIR/.env"
+  section "Gravando .env"
   umask 077
   cat > "$APP_DIR/.env" <<EOF
 # Gerado por install.sh em $(date -Iseconds)
@@ -174,104 +243,189 @@ EOF
   chown "$APP_USER":"$APP_USER" "$APP_DIR/.env" 2>/dev/null || true
   chmod 600 "$APP_DIR/.env"
   umask 022
+  ok ".env gravado com chmod 600"
 }
 
-# --- 5) Build ---------------------------------------------------------------
 build_app() {
-  c_bld "==> Instalando dependências + build (Nitro node-server)"
-  ( cd "$APP_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install )
-  ( cd "$APP_DIR" && NITRO_PRESET=node-server bun run build )
-  if [ ! -f "$APP_DIR/.output/server/index.mjs" ]; then
-    c_red "Build falhou: .output/server/index.mjs não encontrado"; exit 1
-  fi
+  section "Instalando dependências do app e fazendo build"
+  run "bun install"                 bash -c "cd '$APP_DIR' && bun install"
+  run "Build (Nitro node-server)"   bash -c "cd '$APP_DIR' && NITRO_PRESET=node-server bun run build"
+  [ -f "$APP_DIR/.output/server/index.mjs" ] || die "Build não gerou .output/server/index.mjs"
   chown -R "$APP_USER":"$APP_USER" "$APP_DIR/.output" 2>/dev/null || true
 }
 
-# --- 6) systemd -------------------------------------------------------------
 install_service() {
-  c_bld "==> Instalando serviço systemd: $PROJECT"
+  section "Configurando serviço systemd"
   local svc="/etc/systemd/system/${PROJECT}.service"
-  sed -e "s|__PROJECT__|$PROJECT|g" \
-      -e "s|__USER__|$APP_USER|g" \
-      -e "s|__APPDIR__|$APP_DIR|g" \
-      -e "s|__PORT__|$PORT|g" \
+  sed -e "s|__PROJECT__|$PROJECT|g" -e "s|__USER__|$APP_USER|g" \
+      -e "s|__APPDIR__|$APP_DIR|g" -e "s|__PORT__|$PORT|g" \
       "$SCRIPT_DIR/service.template" > "$svc"
-  systemctl daemon-reload
-  systemctl enable "$PROJECT"
-  systemctl restart "$PROJECT"
+  run "systemctl daemon-reload" systemctl daemon-reload
+  run "Habilitando $PROJECT.service" systemctl enable "$PROJECT"
+  run "Iniciando $PROJECT.service"   systemctl restart "$PROJECT"
   sleep 2
-  systemctl --no-pager --lines=10 status "$PROJECT" || true
+  if systemctl is-active --quiet "$PROJECT"; then ok "Serviço ativo"
+  else err "Serviço não subiu — journalctl -u $PROJECT -n 50"; exit 1; fi
 }
 
-# --- 7) Nginx ---------------------------------------------------------------
 install_nginx() {
-  c_bld "==> Publicando vhost Nginx para $DOMAIN"
+  section "Publicando vhost Nginx"
   local conf="/etc/nginx/sites-available/${PROJECT}.conf"
-  sed -e "s|__DOMAIN__|$DOMAIN|g" \
-      -e "s|__PORT__|$PORT|g" \
-      -e "s|__PROJECT__|$PROJECT|g" \
+  sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__PORT__|$PORT|g" -e "s|__PROJECT__|$PROJECT|g" \
       "$SCRIPT_DIR/nginx.conf.template" > "$conf"
   ln -sf "$conf" "/etc/nginx/sites-enabled/${PROJECT}.conf"
-  # Bloqueia SSL até o certbot rodar (evita 'ssl_certificate not found')
+  # bloqueia SSL até certbot rodar
   sed -i 's|^\(\s*listen 443.*\)|# \1|; s|^\(\s*listen \[::\]:443.*\)|# \1|' "$conf"
-  if nginx -t; then
-    systemctl reload nginx
-    c_grn "Nginx recarregado"
-  else
-    c_red "nginx -t falhou; revise $conf"; exit 1
-  fi
+  run "nginx -t" nginx -t
+  run "systemctl reload nginx" systemctl reload nginx
 }
 
-# --- 8) SSL opcional --------------------------------------------------------
 setup_ssl() {
-  read -rp "Emitir certificado Let's Encrypt agora com certbot? [y/N]: " ans || true
-  if [[ "${ans:-n}" =~ ^[yY]$ ]]; then
-    if ! command -v certbot >/dev/null; then
-      c_ylw "certbot não instalado — apt install -y certbot python3-certbot-nginx"
-      apt-get update -y && apt-get install -y certbot python3-certbot-nginx
-    fi
-    # Restaura o bloco 443 comentado
+  section "SSL (Let's Encrypt via Certbot)"
+  if confirm "Emitir certificado agora para $DOMAIN?"; then
+    command -v certbot >/dev/null || apt_install certbot python3-certbot-nginx
     local conf="/etc/nginx/sites-available/${PROJECT}.conf"
     sed -i 's|^# \(\s*listen 443.*\)|\1|; s|^# \(\s*listen \[::\]:443.*\)|\1|' "$conf"
-    certbot --nginx -d "$DOMAIN" --redirect --agree-tos --non-interactive -m "admin@$DOMAIN" || \
-      c_ylw "certbot falhou — rode manualmente depois: certbot --nginx -d $DOMAIN"
-    systemctl reload nginx
+    if certbot --nginx -d "$DOMAIN" --redirect --agree-tos --non-interactive -m "admin@$DOMAIN" >/tmp/bivvo-install.log 2>&1; then
+      ok "Certificado emitido"
+      systemctl reload nginx
+    else
+      warn "certbot falhou — rode depois: certbot --nginx -d $DOMAIN"
+      tail -n 15 /tmp/bivvo-install.log
+    fi
+  else
+    warn "Pulando SSL. Reative depois: sudo bash install/install.sh (opção 5)"
   fi
 }
 
-main() {
-  require_root
-  check_deps
+do_install() {
+  banner
+  need_root
+  ensure_deps
   collect_inputs
-
-  echo
-  c_bld "==> Resumo"
-  echo "  Projeto : $PROJECT"
-  echo "  Domínio : $DOMAIN"
-  echo "  Porta   : $PORT"
-  echo "  App dir : $APP_DIR"
-  echo "  Usuário : $APP_USER"
-  echo
-  read -rp "Confirma e prosseguir com o deploy? [y/N]: " ans || true
-  [[ "${ans:-n}" =~ ^[yY]$ ]] || { c_ylw "Abortado"; exit 0; }
-
   write_env
   build_app
   install_service
   install_nginx
+  save_state
   setup_ssl
 
   echo
-  c_grn "==================================================="
-  c_grn " Instalação concluída!"
-  c_grn "==================================================="
-  echo " URL         : https://$DOMAIN"
-  echo " Admin login : https://$DOMAIN/auth  (usuário: $ADMIN_USERNAME)"
-  echo " Logs        : journalctl -u $PROJECT -f"
-  echo " Serviço     : systemctl {status|restart|stop} $PROJECT"
+  printf "${C_G}${C_BLD}════════════════════════════════════════════════════════════════${C_N}\n"
+  printf "${C_G}${C_BLD}  Instalação concluída!${C_N}\n"
+  printf "${C_G}${C_BLD}════════════════════════════════════════════════════════════════${C_N}\n"
+  echo "  URL          : https://$DOMAIN"
+  echo "  Admin login  : https://$DOMAIN/auth  (usuário: $ADMIN_USERNAME)"
+  echo "  Logs         : journalctl -u $PROJECT -f"
+  echo "  Gerenciar    : sudo bash $APP_DIR/install/install.sh"
   echo
-  c_ylw "ANTES do primeiro acesso: execute install/schema.sql no seu Supabase"
-  c_ylw "e crie um usuário admin em Authentication + linha em public.user_roles."
+  warn "Antes do 1º acesso: execute install/schema.sql no seu Supabase e"
+  warn "adicione o admin em auth.users + public.user_roles (veja README)."
 }
 
-main "$@"
+# ---------- fluxo: atualizar ------------------------------------------------
+do_update() {
+  banner
+  need_root
+  section "Atualizar instância existente"
+  pick_install
+  ensure_deps
+  section "Puxando código novo de $REPO_URL ($REPO_BRANCH)"
+  run "git fetch"       git -C "$APP_DIR" fetch --all --prune
+  run "git checkout"    git -C "$APP_DIR" checkout "$REPO_BRANCH"
+  run "git pull"        git -C "$APP_DIR" pull --ff-only
+  build_app
+  run "Reiniciando $PROJECT" systemctl restart "$PROJECT"
+  ok "Atualização concluída — https://$DOMAIN"
+}
+
+# ---------- fluxo: status ---------------------------------------------------
+do_status() {
+  banner
+  section "Instâncias registradas"
+  list_installs || true
+  echo
+  section "Serviços"
+  for f in "$STATE_DIR"/*.env; do
+    [ -f "$f" ] || continue
+    ( source "$f"
+      if systemctl is-active --quiet "$PROJECT"; then
+        printf "  ${C_G}●${C_N} %-20s ativo  (porta %s)\n" "$PROJECT" "$PORT"
+      else
+        printf "  ${C_R}●${C_N} %-20s parado (porta %s)\n" "$PROJECT" "$PORT"
+      fi )
+  done
+}
+
+# ---------- fluxo: restart --------------------------------------------------
+do_restart() {
+  banner; need_root
+  section "Reiniciar instância"; pick_install
+  run "Reiniciando $PROJECT" systemctl restart "$PROJECT"
+  run "Recarregando nginx"   systemctl reload nginx
+  ok "Reiniciado"
+}
+
+# ---------- fluxo: renovar SSL ---------------------------------------------
+do_ssl() {
+  banner; need_root
+  section "Renovar / emitir SSL"; pick_install
+  command -v certbot >/dev/null || apt_install certbot python3-certbot-nginx
+  local conf="/etc/nginx/sites-available/${PROJECT}.conf"
+  sed -i 's|^# \(\s*listen 443.*\)|\1|; s|^# \(\s*listen \[::\]:443.*\)|\1|' "$conf"
+  certbot --nginx -d "$DOMAIN" --redirect --agree-tos --non-interactive -m "admin@$DOMAIN" || warn "certbot falhou"
+  systemctl reload nginx
+  ok "Concluído"
+}
+
+# ---------- fluxo: desinstalar ---------------------------------------------
+do_uninstall() {
+  banner; need_root
+  section "Desinstalar instância"; pick_install
+  confirm "Confirmar remoção de '$PROJECT' ($DOMAIN)?" || { warn "Cancelado"; return; }
+  systemctl disable --now "$PROJECT" 2>/dev/null || true
+  rm -f "/etc/systemd/system/${PROJECT}.service"
+  rm -f "/etc/nginx/sites-enabled/${PROJECT}.conf" "/etc/nginx/sites-available/${PROJECT}.conf"
+  systemctl daemon-reload; systemctl reload nginx || true
+  rm -f "$STATE_DIR/$PROJECT.env"
+  ok "Serviço, vhost e estado removidos."
+  if confirm "Remover também o diretório $APP_DIR?"; then rm -rf "$APP_DIR"; ok "Diretório removido"; fi
+  warn "Dados no Supabase precisam ser removidos manualmente."
+}
+
+# ---------- menu ------------------------------------------------------------
+menu() {
+  while true; do
+    banner
+    printf "${C_BLD}  Diretório do repositório:${C_N} %s\n" "$APP_DIR"
+    printf "${C_BLD}  Branch:${C_N} %s\n\n" "$REPO_BRANCH"
+    cat <<EOF
+  ${C_C}${C_BLD}O que você quer fazer?${C_N}
+
+    ${C_G}1${C_N})  Instalar nova instância
+    ${C_G}2${C_N})  Atualizar instância existente
+    ${C_G}3${C_N})  Ver status das instâncias
+    ${C_G}4${C_N})  Reiniciar uma instância
+    ${C_G}5${C_N})  Emitir / renovar SSL
+    ${C_G}6${C_N})  Desinstalar uma instância
+    ${C_G}0${C_N})  Sair
+
+EOF
+    local op; read -rp "  Opção: " op || exit 0
+    case "${op:-}" in
+      1) do_install ;;
+      2) do_update ;;
+      3) do_status ;;
+      4) do_restart ;;
+      5) do_ssl ;;
+      6) do_uninstall ;;
+      0|q|Q) exit 0 ;;
+      *) warn "Opção inválida" ;;
+    esac
+    echo; read -rp "  ⏎ para voltar ao menu..." _ || true
+  done
+}
+
+trap 'err "Falha inesperada na linha $LINENO. Log: /tmp/bivvo-install.log"' ERR
+need_root
+menu
