@@ -151,6 +151,6 @@ Log da última operação em `/tmp/bivvo-install.log`.
 | `502 Bad Gateway` | `systemctl status <slug>` e `journalctl -u <slug> -n 100` |
 | Build falha | `node -v` deve ser ≥ 20; ver `/tmp/bivvo-install.log` |
 | Login admin não funciona | Usuário existe em `auth.users` **e** em `public.user_roles` com role `admin`? |
-| Busca vazia | Clique em "Reindexar busca" em `/admin` (requer `LOVABLE_API_KEY`) |
+| Busca vazia | Clique em "Reindexar busca" em `/admin` |
 | SSL falhou | Menu → opção **5** depois que o DNS propagar |
 | `nginx -t` falhou | Revise `/etc/nginx/sites-available/<slug>.conf` — o instalador **não** recarrega quando o teste falha |
