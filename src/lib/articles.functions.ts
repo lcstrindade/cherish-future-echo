@@ -173,12 +173,14 @@ export const upsertArticle = createServerFn({ method: "POST" })
       return row;
     }
     // New article — append at the end of its sibling group
-    const { data: siblings } = await supabaseAdmin
+    const sibQ = supabaseAdmin
       .from("articles")
       .select("position")
-      .is("parent_id", data.parent_id ?? null)
       .order("position", { ascending: false })
       .limit(1);
+    const { data: siblings } = data.parent_id
+      ? await sibQ.eq("parent_id", data.parent_id)
+      : await sibQ.is("parent_id", null);
     const nextPos = (siblings?.[0]?.position ?? -1) + 1;
     const { data: row, error } = await supabaseAdmin
       .from("articles")
