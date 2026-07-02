@@ -78,9 +78,9 @@ export function RichEditor({ value, onChange }: Props) {
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
-      // StarterKit v3 already includes Link and Underline — disable to avoid
-      // duplicate-extension warnings and to let our configured versions win.
+      // StarterKit v3 already ships Link and Underline — disable them so our
+      // configured versions win instead of triggering duplicate-extension warnings.
+      StarterKit.configure({ codeBlock: false, link: false, underline: false }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
       AlignableImage.configure({ inline: false, allowBase64: false }),
       Link.configure({ openOnClick: false, autolink: true }),
