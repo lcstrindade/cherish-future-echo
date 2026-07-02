@@ -49,8 +49,8 @@ Antes da VPS, confirme que você tem:
 - domínio apontado para o IP da VPS;
 - credenciais do Supabase externo;
 - acesso root/sudo à VPS;
-- porta 80 liberada para Nginx;
-- porta 443 liberada se for emitir SSL.
+- portas 80 e 443 disponíveis para o Nginx (são compartilhadas entre todos os vhosts — o instalador não troca essas portas, apenas cria um novo `server_name` no Nginx existente);
+- a porta interna do app (entre 3000 e 3999) é escolhida automaticamente pelo instalador, que detecta portas já em uso por outros projetos e escolhe uma livre.
 
 ---
 
