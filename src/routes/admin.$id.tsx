@@ -145,6 +145,8 @@ function AdminEditor() {
   // Autosave (only for existing articles)
   useEffect(() => {
     if (isNew) return;
+    // Nunca autosalvar quando já publicado — publicação/atualização exige confirmação
+    if (status === "published") return;
     if (skipAutosaveRef.current) { skipAutosaveRef.current = false; return; }
     if (!title || !slug) return;
     const t = setTimeout(async () => {
@@ -160,7 +162,7 @@ function AdminEditor() {
             subcategory: subcategory || null,
             cover_image_url: coverUrl || null,
             content, content_text: contentText,
-            status,
+            status: "draft",
             parent_id: parentId || null,
             icon,
           },
@@ -193,7 +195,13 @@ function AdminEditor() {
         <div className="flex items-center gap-3">
           {!isNew && (
             <span className="text-xs text-muted-foreground">
-              {autoSaving ? "Salvando..." : savedAgo ? `Salvo ${savedAgo}` : ""}
+              {status === "published"
+                ? "Publicado — clique em Publicar para atualizar"
+                : autoSaving
+                ? "Salvando..."
+                : savedAgo
+                ? `Rascunho salvo ${savedAgo}`
+                : ""}
             </span>
           )}
           <Button
