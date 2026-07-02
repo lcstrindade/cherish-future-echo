@@ -207,10 +207,6 @@ collect_inputs() {
   ask ADMIN_USERNAME "Usuário admin" "admin"
   ask_secret ADMIN_PASSWORD "Senha admin"
 
-  section "Opcional"
-  ask LOVABLE_API_KEY "LOVABLE_API_KEY (embeddings — enter para pular)" " "
-  [ "$LOVABLE_API_KEY" = " " ] && LOVABLE_API_KEY=""
-
   SESSION_SECRET="$(openssl rand -hex 32)"
   PORT="$(find_free_port 3000 3999)"
   ok "Porta local livre escolhida: $PORT"
@@ -235,7 +231,6 @@ VITE_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
 ADMIN_USERNAME=$ADMIN_USERNAME
 ADMIN_PASSWORD=$ADMIN_PASSWORD
 SESSION_SECRET=$SESSION_SECRET
-LOVABLE_API_KEY=$LOVABLE_API_KEY
 PORT=$PORT
 HOST=127.0.0.1
 NODE_ENV=production
