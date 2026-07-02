@@ -219,12 +219,13 @@ ensure_deps() {
 # ---------- port discovery --------------------------------------------------
 find_free_port() {
   local start="${1:-3000}" end="${2:-3999}" p used
-  used="$( { ss -tlnH 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}';
-             grep -rhoE 'proxy_pass[[:space:]]+https?://(127\.0\.0\.1|localhost):[0-9]+' /etc/nginx 2>/dev/null | grep -oE '[0-9]+$';
-             grep -rhoE '^PORT=[0-9]+' "$STATE_DIR" 2>/dev/null | cut -d= -f2;
-           } | sort -u )"
+  used="$( {
+    ss -tlnH 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}' || true
+    grep -rhoE 'proxy_pass[[:space:]]+https?://(127\.0\.0\.1|localhost):[0-9]+' /etc/nginx 2>/dev/null | grep -oE '[0-9]+$' || true
+    grep -rhoE '^PORT=[0-9]+' "$STATE_DIR" 2>/dev/null | cut -d= -f2 || true
+  } | sort -u || true )"
   for ((p=start; p<=end; p++)); do
-    grep -qx "$p" <<<"$used" || { echo "$p"; return; }
+    if ! grep -qx "$p" <<<"$used"; then echo "$p"; return 0; fi
   done
   die "Nenhuma porta livre entre $start e $end"
 }
