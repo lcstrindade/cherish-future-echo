@@ -1,12 +1,6 @@
 import { createFileRoute, Link, Outlet, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Menu, Search } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { ChevronRight, FileText, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
 import { SearchCommand } from "@/components/SearchCommand";
@@ -46,31 +40,17 @@ function DocsLayout() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, Map<string, ArticleListItem[]>>();
-    for (const a of all) {
-      const topic = a.category?.trim() || "Geral";
-      const sub = a.subcategory?.trim() || "";
-      if (!map.has(topic)) map.set(topic, new Map());
-      const subs = map.get(topic)!;
-      if (!subs.has(sub)) subs.set(sub, []);
-      subs.get(sub)!.push(a);
-    }
-    return Array.from(map.entries()).map(
-      ([topic, subs]) => [topic, Array.from(subs.entries())] as const,
-    );
-  }, [all]);
-
-  const activeTopic = useMemo(() => {
-    const active = all.find((a) => a.slug === activeSlug);
-    return active?.category?.trim() || grouped[0]?.[0] || "";
-  }, [all, activeSlug, grouped]);
+  const tree = useMemo(() => buildTree(all), [all]);
+  const activePath = useMemo(
+    () => (activeSlug ? findAncestorIds(all, activeSlug) : new Set<string>()),
+    [all, activeSlug],
+  );
 
   const sidebarNav = (
-    <SidebarNav
-      grouped={grouped}
+    <SidebarTree
+      nodes={tree}
       activeSlug={activeSlug}
-      activeTopic={activeTopic}
+      activePath={activePath}
       onNavigate={() => setMobileNavOpen(false)}
     />
   );
@@ -149,18 +129,57 @@ function DocsLayout() {
   );
 }
 
-function SidebarNav({
-  grouped,
+// --- Tree helpers ---
+
+export type TreeNode = ArticleListItem & { children: TreeNode[] };
+
+function buildTree(all: ArticleListItem[]): TreeNode[] {
+  const byId = new Map<string, TreeNode>();
+  all.forEach((a) => byId.set(a.id, { ...a, children: [] }));
+  const roots: TreeNode[] = [];
+  for (const node of byId.values()) {
+    if (node.parent_id && byId.has(node.parent_id)) {
+      byId.get(node.parent_id)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  const sortRec = (nodes: TreeNode[]) => {
+    nodes.sort((a, b) => a.position - b.position);
+    nodes.forEach((n) => sortRec(n.children));
+  };
+  sortRec(roots);
+  return roots;
+}
+
+function findAncestorIds(all: ArticleListItem[], slug: string): Set<string> {
+  const bySlug = new Map<string, ArticleListItem>();
+  const byId = new Map<string, ArticleListItem>();
+  all.forEach((a) => {
+    bySlug.set(a.slug, a);
+    byId.set(a.id, a);
+  });
+  const set = new Set<string>();
+  let cur = bySlug.get(slug);
+  while (cur) {
+    set.add(cur.id);
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  return set;
+}
+
+function SidebarTree({
+  nodes,
   activeSlug,
-  activeTopic,
+  activePath,
   onNavigate,
 }: {
-  grouped: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, ArticleListItem[]]>]>;
+  nodes: TreeNode[];
   activeSlug: string | undefined;
-  activeTopic: string;
+  activePath: Set<string>;
   onNavigate: () => void;
 }) {
-  if (grouped.length === 0) {
+  if (nodes.length === 0) {
     return (
       <div className="text-sm text-muted-foreground px-2 flex items-center gap-2">
         <FileText className="h-4 w-4" /> Nenhum artigo publicado.
@@ -168,78 +187,100 @@ function SidebarNav({
     );
   }
   return (
-    <Accordion
-      type="multiple"
-      defaultValue={[activeTopic]}
-      className="space-y-1"
-    >
-      {grouped.map(([topic, subs]) => (
-        <AccordionItem key={topic} value={topic} className="border-none">
-          <AccordionTrigger className="px-2 py-2 text-xs uppercase tracking-wider font-semibold text-muted-foreground hover:no-underline hover:text-foreground">
-            {topic}
-          </AccordionTrigger>
-          <AccordionContent className="pb-2">
-            <div className="space-y-3">
-              {subs.map(([sub, items]) => (
-                <div key={sub || "_"}>
-                  {sub && (
-                    <div className="text-[11px] font-medium text-muted-foreground/80 px-2 mb-1">
-                      {sub}
-                    </div>
-                  )}
-                  <ul className={"space-y-0.5 " + (sub ? "pl-3 border-l border-border/60 ml-2" : "")}>
-                    {items.map((a) => (
-                      <SidebarLink
-                        key={a.id}
-                        slug={a.slug}
-                        title={a.title}
-                        active={a.slug === activeSlug}
-                        onClick={onNavigate}
-                      />
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+    <ul className="space-y-0.5">
+      {nodes.map((n) => (
+        <TreeItem
+          key={n.id}
+          node={n}
+          depth={0}
+          activeSlug={activeSlug}
+          activePath={activePath}
+          onNavigate={onNavigate}
+        />
       ))}
-    </Accordion>
+    </ul>
   );
 }
 
-function SidebarLink({
-  slug,
-  title,
-  active,
-  onClick,
+function TreeItem({
+  node,
+  depth,
+  activeSlug,
+  activePath,
+  onNavigate,
 }: {
-  slug: string;
-  title: string;
-  active: boolean;
-  onClick?: () => void;
+  node: TreeNode;
+  depth: number;
+  activeSlug: string | undefined;
+  activePath: Set<string>;
+  onNavigate: () => void;
 }) {
+  const active = node.slug === activeSlug;
+  const hasChildren = node.children.length > 0;
+  const inPath = activePath.has(node.id);
+  const [open, setOpen] = useState<boolean>(hasChildren && (inPath || depth === 0));
+  useEffect(() => {
+    if (inPath) setOpen(true);
+  }, [inPath]);
+
   return (
-    <li className="relative">
-      {active && (
-        <span
-          aria-hidden
-          className="absolute left-[-13px] top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary"
-        />
-      )}
-      <Link
-        to="/docs/$slug"
-        params={{ slug }}
-        onClick={onClick}
+    <li>
+      <div
         className={
-          "block px-2 py-1.5 rounded-md text-sm transition-colors " +
+          "group relative flex items-center gap-1 rounded-md pr-1 transition-colors " +
           (active
-            ? "bg-accent text-foreground font-medium"
+            ? "bg-accent text-foreground"
             : "text-muted-foreground hover:text-foreground hover:bg-accent/60")
         }
+        style={{ paddingLeft: `${depth * 12}px` }}
       >
-        {title}
-      </Link>
+        {active && (
+          <span
+            aria-hidden
+            className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary"
+          />
+        )}
+        {hasChildren ? (
+          <button
+            type="button"
+            aria-label={open ? "Recolher" : "Expandir"}
+            onClick={() => setOpen((v) => !v)}
+            className="h-6 w-6 flex items-center justify-center shrink-0 hover:text-foreground"
+          >
+            <ChevronRight
+              className={"h-3.5 w-3.5 transition-transform " + (open ? "rotate-90" : "")}
+            />
+          </button>
+        ) : (
+          <span className="h-6 w-6 shrink-0" />
+        )}
+        <Link
+          to="/docs/$slug"
+          params={{ slug: node.slug }}
+          onClick={onNavigate}
+          className={
+            "flex-1 min-w-0 truncate py-1.5 pr-2 text-sm " +
+            (active ? "font-medium" : "")
+          }
+          title={node.title}
+        >
+          {node.title}
+        </Link>
+      </div>
+      {hasChildren && open && (
+        <ul className="mt-0.5 space-y-0.5 border-l border-border/60 ml-3">
+          {node.children.map((c) => (
+            <TreeItem
+              key={c.id}
+              node={c}
+              depth={depth + 1}
+              activeSlug={activeSlug}
+              activePath={activePath}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </ul>
+      )}
     </li>
   );
 }

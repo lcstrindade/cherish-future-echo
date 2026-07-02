@@ -20,6 +20,8 @@ export type ArticleListItem = {
   subcategory: string | null;
   cover_image_url: string | null;
   published_at: string | null;
+  parent_id: string | null;
+  position: number;
 };
 
 export const listPublishedArticles = createServerFn({ method: "GET" }).handler(
@@ -27,12 +29,12 @@ export const listPublishedArticles = createServerFn({ method: "GET" }).handler(
     const sb = publicClient();
     const { data, error } = await sb
       .from("articles")
-      .select("id, slug, title, excerpt, category, subcategory, cover_image_url, published_at")
+      .select("id, slug, title, excerpt, category, subcategory, cover_image_url, published_at, parent_id, position")
       .eq("status", "published")
-      .order("published_at", { ascending: false })
-      .limit(100);
+      .order("position", { ascending: true })
+      .limit(500);
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return (data ?? []) as ArticleListItem[];
   },
 );
 
@@ -42,7 +44,7 @@ export const getArticleBySlug = createServerFn({ method: "GET" })
     const sb = publicClient();
     const { data: row, error } = await sb
       .from("articles")
-      .select("id, slug, title, excerpt, content, cover_image_url, category, subcategory, published_at, updated_at")
+      .select("id, slug, title, excerpt, content, cover_image_url, category, subcategory, published_at, updated_at, parent_id, position")
       .eq("slug", data.slug)
       .eq("status", "published")
       .maybeSingle();
@@ -60,12 +62,12 @@ export const searchArticles = createServerFn({ method: "POST" })
     if (!q) {
       const { data: list, error } = await sb
         .from("articles")
-        .select("id, slug, title, excerpt, category, subcategory, cover_image_url, published_at")
+      .select("id, slug, title, excerpt, category, subcategory, cover_image_url, published_at, parent_id, position")
         .eq("status", "published")
-        .order("published_at", { ascending: false })
+      .order("position", { ascending: true })
         .limit(20);
       if (error) throw new Error(error.message);
-      return list ?? [];
+      return (list ?? []) as ArticleListItem[];
     }
 
     let embedding: number[] | null = null;
@@ -100,6 +102,7 @@ const ArticleInput = z.object({
   content: z.any(),
   content_text: z.string().default(""),
   status: z.enum(["draft", "published"]),
+  parent_id: z.string().uuid().nullable().optional(),
 });
 
 export const listAllArticlesAdmin = createServerFn({ method: "GET" })
@@ -108,8 +111,8 @@ export const listAllArticlesAdmin = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("articles")
-      .select("id, slug, title, status, updated_at, published_at, category, subcategory")
-      .order("updated_at", { ascending: false });
+      .select("id, slug, title, status, updated_at, published_at, category, subcategory, parent_id, position")
+      .order("position", { ascending: true });
     if (error) throw new Error(error.message);
     return data ?? [];
   });
@@ -121,7 +124,7 @@ export const getArticleByIdAdmin = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("articles")
-      .select("id, slug, title, excerpt, content, content_text, cover_image_url, category, subcategory, status, published_at, updated_at")
+      .select("id, slug, title, excerpt, content, content_text, cover_image_url, category, subcategory, status, published_at, updated_at, parent_id, position")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -153,6 +156,7 @@ export const upsertArticle = createServerFn({ method: "POST" })
       content_text: data.content_text,
       status: data.status,
       author_id: null,
+      parent_id: data.parent_id ?? null,
       embedding: embedding && embedding.length ? (embedding as unknown as string) : null,
       published_at:
         data.status === "published" ? new Date().toISOString() : null,
@@ -168,13 +172,48 @@ export const upsertArticle = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       return row;
     }
+    // New article — append at the end of its sibling group
+    const sibQ = supabaseAdmin
+      .from("articles")
+      .select("position")
+      .order("position", { ascending: false })
+      .limit(1);
+    const { data: siblings } = data.parent_id
+      ? await sibQ.eq("parent_id", data.parent_id)
+      : await sibQ.is("parent_id", null);
+    const nextPos = (siblings?.[0]?.position ?? -1) + 1;
     const { data: row, error } = await supabaseAdmin
       .from("articles")
-      .insert(payload)
+      .insert({ ...(payload as object), position: nextPos } as never)
       .select("id, slug")
       .single();
     if (error) throw new Error(error.message);
     return row;
+  });
+
+export const reorderArticles = createServerFn({ method: "POST" })
+  .middleware([requireAdminSession])
+  .inputValidator((d: unknown) =>
+    z.object({
+      updates: z.array(
+        z.object({
+          id: z.string().uuid(),
+          parent_id: z.string().uuid().nullable(),
+          position: z.number().int().min(0),
+        }),
+      ).max(500),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    for (const u of data.updates) {
+      const { error } = await supabaseAdmin
+        .from("articles")
+        .update({ parent_id: u.parent_id, position: u.position })
+        .eq("id", u.id);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
   });
 
 export const deleteArticle = createServerFn({ method: "POST" })

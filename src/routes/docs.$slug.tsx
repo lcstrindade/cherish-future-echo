@@ -209,17 +209,23 @@ function ArticlePage() {
 }
 
 function orderArticles(all: ArticleListItem[]): ArticleListItem[] {
-  const map = new Map<string, Map<string, ArticleListItem[]>>();
+  // Depth-first traversal of the parent_id tree, respecting `position`.
+  const byParent = new Map<string | null, ArticleListItem[]>();
   for (const a of all) {
-    const topic = a.category?.trim() || "Geral";
-    const sub = a.subcategory?.trim() || "";
-    if (!map.has(topic)) map.set(topic, new Map());
-    const subs = map.get(topic)!;
-    if (!subs.has(sub)) subs.set(sub, []);
-    subs.get(sub)!.push(a);
+    const key = a.parent_id ?? null;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key)!.push(a);
   }
+  for (const list of byParent.values()) list.sort((a, b) => a.position - b.position);
   const out: ArticleListItem[] = [];
-  for (const [, subs] of map) for (const [, items] of subs) for (const a of items) out.push(a);
+  const walk = (parentId: string | null) => {
+    const kids = byParent.get(parentId) ?? [];
+    for (const k of kids) {
+      out.push(k);
+      walk(k.id);
+    }
+  };
+  walk(null);
   return out;
 }
 

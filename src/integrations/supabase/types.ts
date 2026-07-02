@@ -25,6 +25,8 @@ export type Database = {
           embedding: string | null
           excerpt: string | null
           id: string
+          parent_id: string | null
+          position: number
           published_at: string | null
           search_tsv: unknown
           slug: string
@@ -43,6 +45,8 @@ export type Database = {
           embedding?: string | null
           excerpt?: string | null
           id?: string
+          parent_id?: string | null
+          position?: number
           published_at?: string | null
           search_tsv?: unknown
           slug: string
@@ -61,6 +65,8 @@ export type Database = {
           embedding?: string | null
           excerpt?: string | null
           id?: string
+          parent_id?: string | null
+          position?: number
           published_at?: string | null
           search_tsv?: unknown
           slug?: string
@@ -69,7 +75,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "articles_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
