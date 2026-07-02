@@ -49,7 +49,7 @@ Antes da VPS, confirme que você tem:
 - domínio apontado para o IP da VPS;
 - credenciais do Supabase externo;
 - acesso root/sudo à VPS;
-- portas 80 e 443 disponíveis para o Nginx (são compartilhadas entre todos os vhosts — o instalador não troca essas portas, apenas cria um novo `server_name` no Nginx existente);
+- portas 80 e 443 atendidas pelo Nginx (são compartilhadas entre todos os vhosts — o instalador não troca essas portas, apenas cria um novo `server_name` no Nginx existente);
 - a porta interna do app (entre 3000 e 3999) é escolhida automaticamente pelo instalador, que detecta portas já em uso por outros projetos e escolhe uma livre.
 
 ---
@@ -110,6 +110,8 @@ Durante a instalação ele:
 - cria um serviço systemd isolado;
 - cria um vhost Nginx isolado;
 - valida `nginx -t` antes de recarregar o Nginx;
+- verifica se o app responde em `127.0.0.1:<porta>/docs`;
+- verifica se o Nginx encaminha o domínio para o app localmente;
 - opcionalmente emite SSL com Let's Encrypt;
 - salva o estado da instância em `/etc/bivvo-docs/`.
 
@@ -238,8 +240,20 @@ install/
 | Sintoma | O que verificar |
 | --- | --- |
 | `502 Bad Gateway` | `systemctl status <slug>` e `journalctl -u <slug> -n 100` |
+| Site não abre após instalar | Rode `sudo bash /opt/bivvo-docs/install/install.sh` → opção 3 e confira serviço/Nginx |
 | Build falhou | Ver `/tmp/bivvo-install.log`; confirmar Node.js 20+ |
 | Login admin não entra | Ver `/etc/bivvo-docs/<slug>-admin.txt`; se alterou `.env`, reinicie |
 | Busca vazia | Acesse `/admin` e use a opção de reindexar busca |
 | SSL falhou | Aguarde DNS propagar e rode menu → opção 5 |
 | `nginx -t` falhou | Revise `/etc/nginx/sites-available/<slug>.conf`; o instalador não recarrega se o teste falhar |
+
+Comandos úteis para diagnóstico:
+
+```bash
+sudo systemctl status <slug>
+sudo journalctl -u <slug> -n 100 --no-pager
+sudo nginx -t
+curl -I -H "Host: docs.seudominio.com.br" http://127.0.0.1/docs
+```
+
+Durante a instalação, o Nginx primeiro publica o site em HTTP. Se o SSL falhar por DNS ainda não propagado, o app continua online via HTTP e você pode emitir o certificado depois pelo menu → opção 5.

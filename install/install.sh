@@ -166,6 +166,7 @@ install_node20_binary() {
   ln -sfn "$node_dir/bin/npm" /usr/local/bin/npm
   ln -sfn "$node_dir/bin/npx" /usr/local/bin/npx
   [ -x "$node_dir/bin/corepack" ] && ln -sfn "$node_dir/bin/corepack" /usr/local/bin/corepack
+  hash -r 2>/dev/null || true
 }
 
 ensure_bun() {
@@ -318,11 +319,49 @@ build_app() {
   chown -R "$APP_USER":"$APP_USER" "$APP_DIR/.output" 2>/dev/null || true
 }
 
+wait_for_app() {
+  section "Verificando aplicação local"
+  local url="http://127.0.0.1:${PORT}/docs" code attempt
+  for attempt in {1..30}; do
+    code="$(curl -fsS -o /tmp/bivvo-app-health.html -w "%{http_code}" --max-time 2 "$url" 2>/dev/null || true)"
+    if [[ "$code" =~ ^(2|3)[0-9][0-9]$ ]]; then
+      ok "Aplicação respondeu localmente em $url (HTTP $code)"
+      return 0
+    fi
+    sleep 1
+  done
+
+  err "A aplicação não respondeu em $url"
+  warn "Últimas linhas do serviço:"
+  journalctl -u "$PROJECT" -n 80 --no-pager || true
+  return 1
+}
+
+verify_nginx_route() {
+  section "Verificando rota local do Nginx"
+  local url="http://127.0.0.1/docs" code
+  code="$(curl -fsS -o /tmp/bivvo-nginx-health.html -w "%{http_code}" --max-time 3 -H "Host: $DOMAIN" "$url" 2>/dev/null || true)"
+  if [[ "$code" =~ ^(2|3)[0-9][0-9]$ ]]; then
+    ok "Nginx encaminhou $DOMAIN para a aplicação (HTTP $code)"
+    return 0
+  fi
+
+  warn "Nginx não retornou sucesso para $DOMAIN ainda (HTTP ${code:-sem resposta})"
+  warn "Veja: nginx -t && tail -n 80 /var/log/nginx/${PROJECT}.error.log"
+  return 0
+}
+
 install_service() {
   section "Configurando serviço systemd"
-  local svc="/etc/systemd/system/${PROJECT}.service"
+  local svc="/etc/systemd/system/${PROJECT}.service" node_bin node_major
+  node_bin="$(command -v node || true)"
+  [ -n "$node_bin" ] || die "Node.js não encontrado após instalação das dependências."
+  node_major="$($node_bin -v | sed 's/^v\([0-9]*\).*/\1/')"
+  [ "$node_major" -ge 20 ] || die "Node.js do serviço precisa ser 20+. Encontrado: $($node_bin -v) em $node_bin"
+  ok "Serviço usará Node.js $($node_bin -v) em $node_bin"
   sed -e "s|__PROJECT__|$PROJECT|g" -e "s|__USER__|$APP_USER|g" \
       -e "s|__APPDIR__|$APP_DIR|g" -e "s|__PORT__|$PORT|g" \
+      -e "s|__NODE_BIN__|$node_bin|g" \
       "$SCRIPT_DIR/service.template" > "$svc"
   run "systemctl daemon-reload" systemctl daemon-reload
   run "Habilitando $PROJECT.service" systemctl enable "$PROJECT"
@@ -330,26 +369,26 @@ install_service() {
   sleep 2
   if systemctl is-active --quiet "$PROJECT"; then ok "Serviço ativo"
   else err "Serviço não subiu — journalctl -u $PROJECT -n 50"; exit 1; fi
+  wait_for_app
 }
 
 install_nginx() {
   section "Publicando vhost Nginx"
   local conf="/etc/nginx/sites-available/${PROJECT}.conf"
+  mkdir -p /var/www/certbot
+  run "Garantindo Nginx ativo" systemctl enable --now nginx
   sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__PORT__|$PORT|g" -e "s|__PROJECT__|$PROJECT|g" \
       "$SCRIPT_DIR/nginx.conf.template" > "$conf"
   ln -sf "$conf" "/etc/nginx/sites-enabled/${PROJECT}.conf"
-  # bloqueia SSL até certbot rodar
-  sed -i 's|^\(\s*listen 443.*\)|# \1|; s|^\(\s*listen \[::\]:443.*\)|# \1|' "$conf"
   run "nginx -t" nginx -t
   run "systemctl reload nginx" systemctl reload nginx
+  verify_nginx_route
 }
 
 setup_ssl() {
   section "SSL (Let's Encrypt via Certbot)"
   if confirm "Emitir certificado agora para $DOMAIN?"; then
     command -v certbot >/dev/null || apt_install certbot python3-certbot-nginx
-    local conf="/etc/nginx/sites-available/${PROJECT}.conf"
-    sed -i 's|^# \(\s*listen 443.*\)|\1|; s|^# \(\s*listen \[::\]:443.*\)|\1|' "$conf"
     if certbot --nginx -d "$DOMAIN" --redirect --agree-tos --non-interactive -m "admin@$DOMAIN" >/tmp/bivvo-install.log 2>&1; then
       ok "Certificado emitido"
       systemctl reload nginx
@@ -435,8 +474,6 @@ do_ssl() {
   banner; need_root
   section "Renovar / emitir SSL"; pick_install
   command -v certbot >/dev/null || apt_install certbot python3-certbot-nginx
-  local conf="/etc/nginx/sites-available/${PROJECT}.conf"
-  sed -i 's|^# \(\s*listen 443.*\)|\1|; s|^# \(\s*listen \[::\]:443.*\)|\1|' "$conf"
   certbot --nginx -d "$DOMAIN" --redirect --agree-tos --non-interactive -m "admin@$DOMAIN" || warn "certbot falhou"
   systemctl reload nginx
   ok "Concluído"
