@@ -15,12 +15,6 @@
 # ============================================================================
 set -Eeuo pipefail
 
-# Reanexa stdin ao terminal quando o script é executado via pipe
-# (ex.: `curl ... | sudo bash`), senão `read` recebe EOF e o menu fecha sozinho.
-if [ ! -t 0 ] && [ -r /dev/tty ]; then
-  exec </dev/tty
-fi
-
 REPO_URL="${REPO_URL:-https://github.com/lcstrindade/cherish-future-echo.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 DEFAULT_INSTALL_DIR="${DEFAULT_INSTALL_DIR:-/opt/bivvo-docs}"
@@ -87,13 +81,17 @@ if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.j
   need_root
   step "Instalando git (se necessário) e clonando o repositório"
   command -v git >/dev/null || { apt-get update -y >/dev/null 2>&1 || true; apt-get install -y git >/dev/null; }
-  ask APP_DIR "Diretório de instalação" "$DEFAULT_INSTALL_DIR"
+  APP_DIR="${APP_DIR:-$DEFAULT_INSTALL_DIR}"
+  ok "Diretório de instalação: $APP_DIR"
   if [ -d "$APP_DIR/.git" ]; then
     run "Atualizando repositório existente em $APP_DIR" \
       bash -c "git -C '$APP_DIR' fetch --all --prune && git -C '$APP_DIR' checkout '$REPO_BRANCH' && git -C '$APP_DIR' pull --ff-only"
   else
     mkdir -p "$(dirname "$APP_DIR")"
     run "Clonando $REPO_URL em $APP_DIR" git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
+  fi
+  if [ -r /dev/tty ]; then
+    exec bash "$APP_DIR/install/install.sh" </dev/tty
   fi
   exec bash "$APP_DIR/install/install.sh"
 fi
