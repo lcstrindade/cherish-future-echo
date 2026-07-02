@@ -6,32 +6,6 @@ Repositório: <https://github.com/lcstrindade/cherish-future-echo>
 
 ---
 
-## Entendendo o login do admin
-
-O painel `/auth` **não usa usuário criado no Supabase Auth**.
-
-Ele é um login simples do próprio sistema, validado no servidor por variáveis no `.env` da VPS:
-
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
-
-Agora o instalador define isso automaticamente:
-
-- usuário padrão: `admin`
-- senha: gerada automaticamente com valor forte e aleatório
-
-No final da instalação, o instalador **não imprime a senha no terminal**. Ele salva uma cópia em:
-
-```bash
-/etc/bivvo-docs/<slug>-admin.txt
-```
-
-Esse arquivo fica com permissão `600`, acessível apenas pelo root. Para consultar a senha inicial, use `sudo cat /etc/bivvo-docs/<slug>-admin.txt`. Para trocar depois, edite o `.env` da instância e reinicie pelo menu do instalador.
-
-> Resumo: no Supabase você prepara banco/storage. O usuário e senha do painel são do app e o instalador já cria automaticamente.
-
----
-
 ## Etapa 1 — Preparar o Supabase externo
 
 Faça isso antes de rodar o instalador na VPS.
