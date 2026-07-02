@@ -27,6 +27,8 @@ function AuthPage() {
       const res = await login({ data: { username, password } });
       if (res.ok) {
         navigate({ to: "/admin" });
+      } else if ("blocked" in res && res.blocked) {
+        toast.error(`Muitas tentativas. Tente novamente em ${Math.ceil((res.retryAfter ?? 60) / 60)} min.`);
       } else {
         toast.error("Usuário ou senha inválidos");
       }
