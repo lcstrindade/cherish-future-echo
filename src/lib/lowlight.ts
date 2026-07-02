@@ -1,0 +1,20 @@
+import { createLowlight } from "lowlight";
+import javascript from "highlight.js/lib/languages/javascript";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
+import css from "highlight.js/lib/languages/css";
+import json from "highlight.js/lib/languages/json";
+import bash from "highlight.js/lib/languages/bash";
+import python from "highlight.js/lib/languages/python";
+import sql from "highlight.js/lib/languages/sql";
+import markdown from "highlight.js/lib/languages/markdown";
+import go from "highlight.js/lib/languages/go";
+import rust from "highlight.js/lib/languages/rust";
+import java from "highlight.js/lib/languages/java";
+import php from "highlight.js/lib/languages/php";
+
+export const lowlight = createLowlight();
+lowlight.register({ javascript, js: javascript, typescript, ts: typescript });
+lowlight.register({ html: xml, xml, css, json, bash, shell: bash, sh: bash });
+lowlight.register({ python, py: python, sql, markdown, md: markdown });
+lowlight.register({ go, rust, java, php });
