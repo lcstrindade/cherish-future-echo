@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
@@ -30,6 +31,11 @@ const AuthRoute = AuthRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
@@ -54,6 +60,7 @@ const AdminIdRoute = AdminIdRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/docs': typeof DocsRouteWithChildren
@@ -63,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/admin/$id': typeof AdminIdRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -71,6 +79,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/docs': typeof DocsRouteWithChildren
@@ -82,6 +91,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/admin'
     | '/auth'
     | '/docs'
@@ -90,9 +100,10 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/docs/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/admin/$id' | '/docs/$slug' | '/admin' | '/docs'
+  to: '/' | '/auth' | '/admin/$id' | '/docs/$slug' | '/admin' | '/docs'
   id:
     | '__root__'
+    | '/'
     | '/admin'
     | '/auth'
     | '/docs'
@@ -103,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   AuthRoute: typeof AuthRoute
   DocsRoute: typeof DocsRouteWithChildren
@@ -129,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/': {
@@ -187,6 +206,7 @@ const DocsRouteChildren: DocsRouteChildren = {
 const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   AuthRoute: AuthRoute,
   DocsRoute: DocsRouteWithChildren,
