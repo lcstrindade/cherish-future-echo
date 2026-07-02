@@ -1,134 +1,169 @@
-# Bivvo Docs — Instalação em servidor próprio
+# Bivvo Docs — Instalação em servidor externo
 
-Guia para instalar o sistema em um VPS (Debian/Ubuntu) com **Nginx** e um
-**Supabase externo** (self-hosted ou cloud). Um instalador automático faz
-tudo (build, systemd, vhost, SSL, detecção de porta livre).
+Guia rápido para publicar a Central de Ajuda em um VPS (Debian/Ubuntu)
+usando **Nginx + systemd** e um **Supabase externo** (self-hosted ou
+supabase.com).
+
+Repositório oficial: <https://github.com/lcstrindade/cherish-future-echo>
 
 ---
 
-## 1) Pré-requisitos do servidor
+## 1. Pré-requisitos no servidor
 
-- Ubuntu 22.04+ / Debian 12+ com acesso root
-- Domínio apontando (A/AAAA) para o IP do servidor
-- Pacotes:
-  ```bash
-  sudo apt update
-  sudo apt install -y curl git nginx openssl iproute2 ca-certificates
-  # Node.js 20 LTS
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-  sudo apt install -y nodejs
-  # bun (o instalador tenta instalar sozinho se faltar)
-  curl -fsSL https://bun.sh/install | bash
-  ```
-
-## 2) Supabase — provisionar o banco
-
-1. Crie um projeto no **Supabase** (cloud https://supabase.com ou self-hosted).
-2. Em **SQL Editor**, cole e execute o arquivo [`schema.sql`](./schema.sql).
-   Ele cria: extensões (`vector`, `pg_trgm`), tabelas `articles` e
-   `user_roles`, políticas RLS, função de busca híbrida `search_articles`,
-   bucket de storage `article-media` e um artigo de exemplo.
-3. Em **Authentication → Providers → Email**: desative "Confirm email"
-   (o admin não precisa confirmar). Desative signups públicos se quiser.
-4. Crie o usuário admin em **Authentication → Users → Add user** (email +
-   senha). Copie o UUID e rode no SQL Editor:
-   ```sql
-   INSERT INTO public.user_roles (user_id, role)
-   VALUES ('<COLE_O_UUID_AQUI>', 'admin');
-   ```
-5. Anote em **Settings → API**:
-   - `Project URL` → `SUPABASE_URL`
-   - `anon public` → `SUPABASE_PUBLISHABLE_KEY`
-   - `service_role` (secreto!) → `SUPABASE_SERVICE_ROLE_KEY`
-
-## 3) Clonar o código
+- Ubuntu 22.04+ / Debian 12+ com acesso `sudo`
+- Domínio (ou subdomínio) apontando um `A` record para o IP do servidor
+- Pacotes base:
 
 ```bash
-sudo mkdir -p /var/www
-cd /var/www
-sudo git clone <URL_DO_SEU_REPO> bivvo-docs
-cd bivvo-docs
+sudo apt update
+sudo apt install -y git curl nginx openssl iproute2 ca-certificates
+# Node.js 20+ (via NodeSource)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
 ```
 
-## 4) Rodar o instalador
+O instalador cuida do resto (Bun, systemd, vhost Nginx, Certbot opcional).
+
+---
+
+## 2. Provisionar o Supabase
+
+1. Crie um projeto Supabase (ou use um existente).
+2. No **SQL Editor**, cole e execute `install/schema.sql` inteiro. Isso cria:
+   - extensões `vector`, `pg_trgm`, `unaccent`
+   - tabelas `articles`, `user_roles` (com RLS e GRANTs)
+   - função `search_articles` (busca híbrida)
+   - bucket privado `article-media` + policies
+   - um artigo de boas-vindas
+3. Em **Authentication → Users**, crie o usuário admin (email + senha).
+4. Em **SQL Editor**, atribua o papel `admin` a esse usuário:
+
+```sql
+insert into public.user_roles (user_id, role)
+select id, 'admin' from auth.users where email = 'admin@seudominio.com';
+```
+
+5. Anote em **Project Settings → API**:
+   - `Project URL`
+   - `anon public` (publishable key)
+   - `service_role` (secreto — nunca commitar)
+
+---
+
+## 3. Instalação automática (uma linha)
+
+No servidor, como root:
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh | sudo bash
+```
+
+O script:
+
+1. Clona o repositório em `/opt/bivvo-docs` (perguntará o caminho).
+2. Instala Bun se necessário e valida Node ≥ 20, Nginx, OpenSSL, git.
+3. Pergunta interativamente:
+   - Nome do projeto (slug — permite múltiplas instâncias no mesmo host)
+   - Domínio público
+   - Usuário do sistema (padrão `www-data`)
+   - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+   - Usuário e senha do admin
+   - `LOVABLE_API_KEY` (opcional — habilita embeddings/reindex)
+4. **Detecta uma porta livre** entre 3000–3999 checando tanto `ss -tln`
+   quanto todos os `proxy_pass 127.0.0.1:PORT` já configurados em
+   `/etc/nginx` — assim não colide com outros projetos já instalados no
+   mesmo servidor.
+5. Grava `.env` com `chmod 600`, roda `bun install` + build
+   (`NITRO_PRESET=node-server`).
+6. Publica um serviço systemd `<projeto>.service` e um vhost
+   `sites-available/<projeto>.conf` fazendo proxy do domínio para a
+   porta local.
+7. Oferece rodar `certbot --nginx` para emitir SSL Let's Encrypt.
+
+Ao final:
+
+- App: `https://SEU_DOMINIO`
+- Login admin: `https://SEU_DOMINIO/auth`
+- Logs: `journalctl -u <projeto> -f`
+- Controle: `systemctl {status|restart|stop} <projeto>`
+
+---
+
+## 4. Instalação manual (alternativa)
+
+```bash
+sudo git clone https://github.com/lcstrindade/cherish-future-echo.git /opt/bivvo-docs
+cd /opt/bivvo-docs
 sudo bash install/install.sh
 ```
 
-O script vai perguntar:
-
-| Pergunta | O que informar |
-|---|---|
-| Nome do projeto | slug único (ex.: `bivvo-docs`) — usado no systemd e Nginx |
-| Domínio | `docs.seusite.com.br` (já apontado para o IP) |
-| Usuário do sistema | `www-data` (padrão) |
-| SUPABASE_URL / anon / service_role | valores do passo 2.5 |
-| Admin | usuário/senha do painel `/auth` |
-| LOVABLE_API_KEY | opcional — habilita busca por embeddings |
-| Emitir SSL agora? | `y` para Let's Encrypt via certbot |
-
-Ele automaticamente:
-
-- Verifica dependências (Node ≥20, Nginx, openssl)
-- **Detecta uma porta livre** entre 3000–3999 varrendo processos em LISTEN
-  e `proxy_pass` de todos os vhosts em `/etc/nginx` (não colide com outros
-  projetos já instalados no mesmo servidor)
-- Gera `.env` (chmod 600) com `SESSION_SECRET` aleatório
-- Faz `bun install` + `NITRO_PRESET=node-server bun run build`
-- Cria `/etc/systemd/system/<projeto>.service` e inicia
-- Publica `/etc/nginx/sites-available/<projeto>.conf` e recarrega Nginx
-- (opcional) Roda `certbot --nginx` para HTTPS
-
-## 5) Após a instalação
+Use o modo manual se quiser inspecionar o código antes de rodar o
+instalador ou fixar em uma branch/tag específica:
 
 ```bash
-# logs em tempo real
-journalctl -u bivvo-docs -f
-# reiniciar
-sudo systemctl restart bivvo-docs
-# atualizar (após git pull)
-cd /var/www/bivvo-docs && sudo -u www-data bun install && \
-  sudo -u www-data NITRO_PRESET=node-server bun run build && \
-  sudo systemctl restart bivvo-docs
-```
-
-Acesse `https://SEU_DOMINIO` — a home redireciona para `/docs`. Login admin
-em `https://SEU_DOMINIO/auth`.
-
-## 6) Segurança
-
-- O `.env` fica com **chmod 600** e nunca deve ir para o Git
-  (`.env` já está no `.gitignore`).
-- Nunca exponha `SUPABASE_SERVICE_ROLE_KEY` em variáveis `VITE_*`
-  (o instalador já separa corretamente).
-- Troque `ADMIN_PASSWORD` para uma senha forte.
-- Mantenha o Nginx e o sistema operacional atualizados.
-- Habilite firewall (`ufw allow 22,80,443/tcp`).
-
-## 7) Rodar múltiplos projetos no mesmo servidor
-
-Basta rodar o instalador novamente em outro clone/pasta com **nome de
-projeto diferente** — ele automaticamente escolhe outra porta livre e cria
-um segundo vhost/serviço systemd sem afetar o anterior.
-
-## 8) Desinstalar
-
-```bash
-sudo systemctl disable --now bivvo-docs
-sudo rm /etc/systemd/system/bivvo-docs.service
-sudo rm /etc/nginx/sites-enabled/bivvo-docs.conf /etc/nginx/sites-available/bivvo-docs.conf
-sudo systemctl reload nginx
+sudo REPO_BRANCH=v1.2.0 bash install/install.sh
 ```
 
 ---
 
-### Arquivos deste diretório
+## 5. Atualizar para uma nova versão
 
-| Arquivo | Função |
-|---|---|
-| `install.sh` | Instalador interativo |
-| `schema.sql` | Schema completo do Supabase |
-| `.env.example` | Modelo das variáveis de ambiente |
-| `nginx.conf.template` | vhost Nginx (proxy_pass para a porta local) |
-| `service.template` | Unit systemd |
+```bash
+cd /opt/bivvo-docs
+sudo git pull
+sudo -u www-data bun install
+sudo -u www-data NITRO_PRESET=node-server bun run build
+sudo systemctl restart <projeto>
+```
+
+Se `install/schema.sql` mudou, reaplique **apenas as novas migrations**
+no SQL Editor do Supabase (o arquivo é idempotente via `if not exists`,
+mas revise antes de rodar em produção).
+
+---
+
+## 6. Múltiplas instâncias no mesmo servidor
+
+Rode o instalador novamente com outro **slug de projeto** e outro
+**domínio**. A detecção de porta livre garante que cada instância use
+uma porta local diferente e cada vhost aponte para o serviço correto.
+
+```bash
+sudo bash /opt/bivvo-docs/install/install.sh   # docs.clienteA.com
+sudo bash /opt/bivvo-docs/install/install.sh   # docs.clienteB.com
+```
+
+---
+
+## 7. Variáveis de ambiente (`.env`)
+
+Geradas automaticamente pelo instalador — veja `install/.env.example`.
+Nunca commite este arquivo. O `SESSION_SECRET` é gerado com
+`openssl rand -hex 32`.
+
+---
+
+## 8. Desinstalar
+
+```bash
+sudo systemctl disable --now <projeto>
+sudo rm /etc/systemd/system/<projeto>.service
+sudo rm /etc/nginx/sites-enabled/<projeto>.conf /etc/nginx/sites-available/<projeto>.conf
+sudo systemctl reload nginx
+sudo rm -rf /opt/bivvo-docs
+```
+
+No Supabase, remova as tabelas rodando o bloco `drop` correspondente ou
+delete o projeto inteiro.
+
+---
+
+## 9. Troubleshooting
+
+| Sintoma | Verificar |
+| --- | --- |
+| `502 Bad Gateway` | `systemctl status <projeto>` e `journalctl -u <projeto> -n 100` |
+| Build falha | Node ≥ 20? `node -v`. Espaço em disco? `df -h`. |
+| Login admin não funciona | Usuário existe em `auth.users` **e** em `public.user_roles` com role `admin`? |
+| Busca vazia | Rode "Reindexar busca" no `/admin` (requer `LOVABLE_API_KEY`). |
+| SSL falhou | `sudo certbot --nginx -d SEU_DOMINIO` manualmente após o DNS propagar. |

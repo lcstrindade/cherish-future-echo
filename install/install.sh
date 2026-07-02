@@ -1,19 +1,51 @@
 #!/usr/bin/env bash
 # ============================================================================
 # Bivvo Docs — Auto-instalador
-# Uso: sudo bash install/install.sh
+# Uso rápido (uma linha, clona o repo automaticamente):
+#   curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh | sudo bash
+#
+# Uso a partir de um clone existente:
+#   sudo bash install/install.sh
 #
 # O script:
-#  1. Verifica dependências (node >=20, bun, nginx, openssl)
-#  2. Coleta credenciais interativamente (Supabase, admin, domínio)
-#  3. Descobre uma porta local livre (não conflita com outros vhosts/nginx)
-#  4. Gera .env, faz build (Nitro node-server) e instala serviço systemd
-#  5. Publica vhost Nginx apontando o domínio -> 127.0.0.1:PORTA
-#  6. (opcional) Emite certificado Let's Encrypt via certbot --nginx
+#  1. Se rodado fora de um clone, faz git clone do repositório oficial
+#  2. Verifica dependências (git, node >=20, bun, nginx, openssl)
+#  3. Coleta credenciais interativamente (Supabase, admin, domínio)
+#  4. Descobre uma porta local livre (não conflita com outros vhosts/nginx)
+#  5. Gera .env, faz build (Nitro node-server) e instala serviço systemd
+#  6. Publica vhost Nginx apontando o domínio -> 127.0.0.1:PORTA
+#  7. (opcional) Emite certificado Let's Encrypt via certbot --nginx
 # ============================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_URL="${REPO_URL:-https://github.com/lcstrindade/cherish-future-echo.git}"
+REPO_BRANCH="${REPO_BRANCH:-main}"
+INSTALL_ROOT="${INSTALL_ROOT:-/opt}"
+
+# Se o script foi baixado solto (curl | bash), $BASH_SOURCE aponta pra /dev/stdin.
+# Nesse caso, clonamos o repo e reexecutamos o install.sh de dentro dele.
+_SRC="${BASH_SOURCE[0]:-}"
+if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.json" ]; then
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Rode como root: curl -fsSL <url> | sudo bash"; exit 1
+  fi
+  command -v git >/dev/null || { apt-get update -y && apt-get install -y git; }
+  read -rp "Diretório de instalação [$INSTALL_ROOT/bivvo-docs]: " _dir || true
+  APP_DIR="${_dir:-$INSTALL_ROOT/bivvo-docs}"
+  if [ -d "$APP_DIR/.git" ]; then
+    echo "==> Repositório já existe em $APP_DIR — atualizando"
+    git -C "$APP_DIR" fetch --all --prune
+    git -C "$APP_DIR" checkout "$REPO_BRANCH"
+    git -C "$APP_DIR" pull --ff-only
+  else
+    echo "==> Clonando $REPO_URL em $APP_DIR"
+    mkdir -p "$(dirname "$APP_DIR")"
+    git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
+  fi
+  exec bash "$APP_DIR/install/install.sh"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$_SRC")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$APP_DIR"
 
@@ -51,13 +83,14 @@ ask_secret() { # ask_secret VAR "pergunta"
 check_deps() {
   c_bld "==> Verificando dependências"
   local missing=()
+  command -v git     >/dev/null || missing+=("git")
   command -v node    >/dev/null || missing+=("nodejs>=20")
   command -v nginx   >/dev/null || missing+=("nginx")
   command -v openssl >/dev/null || missing+=("openssl")
   command -v ss      >/dev/null || missing+=("iproute2")
   if [ ${#missing[@]} -gt 0 ]; then
     c_red "Faltando: ${missing[*]}"
-    c_ylw "No Debian/Ubuntu: apt update && apt install -y nodejs nginx openssl iproute2"
+    c_ylw "No Debian/Ubuntu: apt update && apt install -y git nodejs nginx openssl iproute2"
     exit 1
   fi
   if ! command -v bun >/dev/null; then
