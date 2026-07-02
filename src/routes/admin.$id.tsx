@@ -389,3 +389,61 @@ function formatAgo(ms: number): string {
   const h = Math.floor(m / 60);
   return `há ${h}h`;
 }
+
+type SnapshotInput = {
+  title: string; slug: string; excerpt: string;
+  category: string; subcategory: string; coverUrl: string;
+  content: unknown; parentId: string; icon: string | null;
+};
+
+function snapshot(v: SnapshotInput): Record<string, unknown> {
+  return {
+    title: v.title, slug: v.slug, excerpt: v.excerpt,
+    category: v.category, subcategory: v.subcategory,
+    coverUrl: v.coverUrl, parentId: v.parentId, icon: v.icon,
+    content: safeStringify(v.content),
+  };
+}
+
+function safeStringify(v: unknown): string {
+  try { return JSON.stringify(v ?? ""); } catch { return String(v ?? ""); }
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "Título", slug: "Slug", excerpt: "Resumo",
+  category: "Tópico", subcategory: "Subtópico",
+  coverUrl: "Capa", parentId: "Página pai",
+  icon: "Ícone", content: "Conteúdo",
+};
+
+function diffSnapshots(
+  prev: Record<string, unknown> | null,
+  next: Record<string, unknown>,
+): { field: string; label: string; summary: string }[] {
+  if (!prev) return [];
+  const out: { field: string; label: string; summary: string }[] = [];
+  for (const key of Object.keys(next)) {
+    const a = prev[key];
+    const b = next[key];
+    if (a === b) continue;
+    let summary: string;
+    if (key === "content") {
+      const la = typeof a === "string" ? a.length : 0;
+      const lb = typeof b === "string" ? b.length : 0;
+      const delta = lb - la;
+      summary = delta === 0
+        ? "estrutura alterada"
+        : `${delta > 0 ? "+" : ""}${delta} caracteres`;
+    } else {
+      const av = a ? String(a) : "(vazio)";
+      const bv = b ? String(b) : "(vazio)";
+      summary = `${truncate(av)} → ${truncate(bv)}`;
+    }
+    out.push({ field: key, label: FIELD_LABELS[key] ?? key, summary });
+  }
+  return out;
+}
+
+function truncate(s: string, n = 40): string {
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
