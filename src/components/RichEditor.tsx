@@ -320,7 +320,7 @@ export function RichEditor({ value, onChange }: Props) {
     : allArticles.slice(0, 8);
 
   return (
-    <div className="border rounded-md bg-background">
+    <div className="border rounded-md bg-background relative">
       <div className="flex flex-wrap gap-1 border-b p-2 sticky top-0 bg-background z-10">
         <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive("bold"))}><Bold className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive("italic"))}><Italic className="h-4 w-4" /></button>
