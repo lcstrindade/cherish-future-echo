@@ -219,12 +219,13 @@ ensure_deps() {
 # ---------- port discovery --------------------------------------------------
 find_free_port() {
   local start="${1:-3000}" end="${2:-3999}" p used
-  used="$( { ss -tlnH 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}';
-             grep -rhoE 'proxy_pass[[:space:]]+https?://(127\.0\.0\.1|localhost):[0-9]+' /etc/nginx 2>/dev/null | grep -oE '[0-9]+$';
-             grep -rhoE '^PORT=[0-9]+' "$STATE_DIR" 2>/dev/null | cut -d= -f2;
-           } | sort -u )"
+  used="$( {
+    ss -tlnH 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}' || true
+    grep -rhoE 'proxy_pass[[:space:]]+https?://(127\.0\.0\.1|localhost):[0-9]+' /etc/nginx 2>/dev/null | grep -oE '[0-9]+$' || true
+    grep -rhoE '^PORT=[0-9]+' "$STATE_DIR" 2>/dev/null | cut -d= -f2 || true
+  } | sort -u || true )"
   for ((p=start; p<=end; p++)); do
-    grep -qx "$p" <<<"$used" || { echo "$p"; return; }
+    if ! grep -qx "$p" <<<"$used"; then echo "$p"; return 0; fi
   done
   die "Nenhuma porta livre entre $start e $end"
 }
@@ -340,6 +341,12 @@ collect_inputs() {
   PORT="$(find_free_port 3000 3999)"
   ok "Porta local livre escolhida: $PORT"
 
+  # Ajusta APP_DIR para refletir o slug do projeto quando o usuário não
+  # forneceu explicitamente um diretório via env var.
+  if [ -z "${BIVVO_APP_DIR:-}" ]; then
+    APP_DIR="/opt/$PROJECT"
+  fi
+
   echo
   section "Resumo"
   printf "  Projeto : %s\n  Domínio : %s\n  Porta   : %s\n  Dir     : %s\n  Usuário : %s\n" \
@@ -356,6 +363,22 @@ ensure_app_user() {
 
   warn "Usuário '$APP_USER' não existe — criando usuário de sistema sem login"
   run "Criando usuário $APP_USER" useradd --system --home-dir "$APP_DIR" --shell /usr/sbin/nologin "$APP_USER"
+}
+
+ensure_repo_clone() {
+  section "Preparando código-fonte em $APP_DIR"
+  if [ -d "$APP_DIR/.git" ]; then
+    ok "Repositório já presente em $APP_DIR"
+    sync_repo_to_origin
+    return
+  fi
+  if [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+    warn "Diretório $APP_DIR existe e não é um clone git — movendo para ${APP_DIR}.bak-$$"
+    mv "$APP_DIR" "${APP_DIR}.bak-$$"
+  fi
+  mkdir -p "$(dirname "$APP_DIR")"
+  run "Clonando $REPO_URL (branch $REPO_BRANCH) em $APP_DIR" \
+    git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
 }
 
 write_env() {
@@ -572,6 +595,7 @@ do_install() {
   ensure_deps
   collect_inputs
   ensure_app_user
+  ensure_repo_clone
   write_env
   save_state
   build_app
