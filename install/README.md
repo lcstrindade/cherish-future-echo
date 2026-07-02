@@ -59,6 +59,14 @@ Antes da VPS, confirme que você tem:
 No servidor, rode:
 
 ```bash
+curl -fsSL -o /tmp/bivvo-docs-install.sh https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh && sudo bash /tmp/bivvo-docs-install.sh
+```
+
+Esse formato é o mais seguro para VPS, porque baixa o instalador primeiro e depois abre o menu interativo normalmente.
+
+Se preferir, o modo por pipe também é suportado:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh | sudo bash
 ```
 
@@ -196,7 +204,8 @@ Você pode rodar a opção **1** novamente com outro slug e outro domínio. O in
 
 ```bash
 # Instalar de outra branch/tag
-sudo REPO_BRANCH=v1.2.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh)"
+curl -fsSL -o /tmp/bivvo-docs-install.sh https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/main/install/install.sh
+sudo REPO_BRANCH=v1.2.0 bash /tmp/bivvo-docs-install.sh
 
 # Instalar de um fork
 sudo REPO_URL=https://github.com/seu-fork/cherish-future-echo.git bash install/install.sh
