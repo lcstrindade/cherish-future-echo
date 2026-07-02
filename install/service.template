@@ -1,0 +1,20 @@
+[Unit]
+Description=Bivvo Docs (__PROJECT__)
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APPDIR__
+EnvironmentFile=__APPDIR__/.env
+Environment=NODE_ENV=production
+Environment=PORT=__PORT__
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/node __APPDIR__/.output/server/index.mjs
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/__PROJECT__.log
+StandardError=append:/var/log/__PROJECT__.err.log
+
+[Install]
+WantedBy=multi-user.target
