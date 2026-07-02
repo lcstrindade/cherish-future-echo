@@ -11,6 +11,7 @@ import {
 import { ArticleRenderer } from "@/components/ArticleRenderer";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ArticleToc } from "@/components/ArticleToc";
+import { ArticleIcon } from "@/components/ArticleIcon";
 
 export const Route = createFileRoute("/docs/$slug")({
   loader: async ({ params, context }) => {
@@ -128,7 +129,15 @@ function ArticlePage() {
     <div className="mx-auto w-full max-w-6xl px-6 sm:px-8 py-10 sm:py-12 flex gap-10">
       <main className="min-w-0 flex-1 max-w-3xl">
         <Breadcrumbs items={crumbs} />
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">{article.title}</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3 flex items-center gap-3">
+          {(article as { icon?: string | null }).icon && (
+            <ArticleIcon
+              name={(article as { icon?: string | null }).icon}
+              className="h-8 w-8 text-primary shrink-0"
+            />
+          )}
+          <span>{article.title}</span>
+        </h1>
         {article.excerpt && (
           <p className="text-lg text-muted-foreground mb-8">{article.excerpt}</p>
         )}
