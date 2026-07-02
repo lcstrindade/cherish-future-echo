@@ -204,8 +204,9 @@ collect_inputs() {
   ask_secret SUPABASE_SERVICE_ROLE_KEY "SUPABASE_SERVICE_ROLE_KEY (secreto)"
 
   section "Credenciais do admin do painel"
-  ask ADMIN_USERNAME "Usuário admin" "admin"
-  ask_secret ADMIN_PASSWORD "Senha admin"
+  ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+  ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(openssl rand -hex 18)}"
+  ok "Admin definido automaticamente: usuário '$ADMIN_USERNAME' e senha forte gerada pelo instalador"
 
   SESSION_SECRET="$(openssl rand -hex 32)"
   PORT="$(find_free_port 3000 3999)"
@@ -237,8 +238,21 @@ NODE_ENV=production
 EOF
   chown "$APP_USER":"$APP_USER" "$APP_DIR/.env" 2>/dev/null || true
   chmod 600 "$APP_DIR/.env"
+
+  mkdir -p "$STATE_DIR"
+  cat > "$STATE_DIR/${PROJECT}-admin.txt" <<EOF
+Bivvo Docs — credenciais iniciais do painel
+URL: https://$DOMAIN/auth
+Usuário: $ADMIN_USERNAME
+Senha: $ADMIN_PASSWORD
+
+Estas credenciais foram geradas automaticamente pelo instalador.
+Para trocar depois, edite $APP_DIR/.env e reinicie a instância pelo menu.
+EOF
+  chmod 600 "$STATE_DIR/${PROJECT}-admin.txt"
   umask 022
   ok ".env gravado com chmod 600"
+  ok "Credenciais iniciais salvas em $STATE_DIR/${PROJECT}-admin.txt (somente root)"
 }
 
 build_app() {
@@ -311,11 +325,11 @@ do_install() {
   printf "${C_G}${C_BLD}════════════════════════════════════════════════════════════════${C_N}\n"
   echo "  URL          : https://$DOMAIN"
   echo "  Admin login  : https://$DOMAIN/auth  (usuário: $ADMIN_USERNAME)"
+  echo "  Senha admin  : salva em $STATE_DIR/${PROJECT}-admin.txt"
   echo "  Logs         : journalctl -u $PROJECT -f"
   echo "  Gerenciar    : sudo bash $APP_DIR/install/install.sh"
   echo
-  warn "Antes do 1º acesso: execute install/schema.sql no seu Supabase e"
-  warn "adicione o admin em auth.users + public.user_roles (veja README)."
+  warn "Antes do 1º acesso: execute install/schema.sql no seu Supabase externo (veja README)."
 }
 
 # ---------- fluxo: atualizar ------------------------------------------------
@@ -383,6 +397,7 @@ do_uninstall() {
   rm -f "/etc/nginx/sites-enabled/${PROJECT}.conf" "/etc/nginx/sites-available/${PROJECT}.conf"
   systemctl daemon-reload; systemctl reload nginx || true
   rm -f "$STATE_DIR/$PROJECT.env"
+  rm -f "$STATE_DIR/${PROJECT}-admin.txt"
   ok "Serviço, vhost e estado removidos."
   if confirm "Remover também o diretório $APP_DIR?"; then rm -rf "$APP_DIR"; ok "Diretório removido"; fi
   warn "Dados no Supabase precisam ser removidos manualmente."

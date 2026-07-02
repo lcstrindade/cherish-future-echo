@@ -1,5 +1,6 @@
 import { createServerFn, createMiddleware } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 type AdminSession = { isAdmin?: boolean };
@@ -21,6 +22,12 @@ function sessionConfig() {
       path: "/",
     },
   };
+}
+
+function safeEquals(input: string, expected: string) {
+  const a = createHash("sha256").update(input, "utf8").digest();
+  const b = createHash("sha256").update(expected, "utf8").digest();
+  return timingSafeEqual(a, b);
 }
 
 export const requireAdminSession = createMiddleware({ type: "function" }).server(
@@ -48,7 +55,7 @@ export const adminLogin = createServerFn({ method: "POST" })
       const wait = Math.ceil((rec.until - now) / 1000);
       return { ok: false as const, blocked: true, retryAfter: wait };
     }
-    if (data.username !== u || data.password !== p) {
+    if (!safeEquals(data.username, u) || !safeEquals(data.password, p)) {
       const next = rec && rec.until > now ? rec : { count: 0, until: now + WINDOW_MS };
       next.count += 1;
       attempts.set(key, next);
