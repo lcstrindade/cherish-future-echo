@@ -82,23 +82,12 @@ if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.j
   banner
   section "Bootstrap"
   need_root
-  step "Instalando git (se necessário) e clonando o repositório"
+  step "Preparando repositório local do instalador"
   command -v git >/dev/null || { apt-get update -y >/dev/null 2>&1 || true; apt-get install -y git >/dev/null; }
   APP_DIR="${APP_DIR:-$DEFAULT_INSTALL_DIR}"
   ok "Diretório de instalação: $APP_DIR"
   if [ -d "$APP_DIR/.git" ]; then
-    run "Atualizando repositório existente em $APP_DIR" \
-      bash -c "
-        set -e
-        env_bak=\"/tmp/bivvo-docs-env-bootstrap-\$\$.bak\"
-        [ -f '$APP_DIR/.env' ] && cp -a '$APP_DIR/.env' \"\$env_bak\" || true
-        git -C '$APP_DIR' remote set-url origin '$REPO_URL' || true
-        git -C '$APP_DIR' fetch origin '$REPO_BRANCH' --prune
-        git -C '$APP_DIR' checkout -f -B '$REPO_BRANCH' 'origin/$REPO_BRANCH'
-        git -C '$APP_DIR' reset --hard 'origin/$REPO_BRANCH'
-        git -C '$APP_DIR' clean -fd -e .env
-        { [ -f \"\$env_bak\" ] && mv -f \"\$env_bak\" '$APP_DIR/.env' || true; }
-      "
+    ok "Instalação existente encontrada — abrindo o menu sem atualizar automaticamente"
   else
     mkdir -p "$(dirname "$APP_DIR")"
     run "Clonando $REPO_URL em $APP_DIR" git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
