@@ -1,12 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RichEditor } from "@/components/RichEditor";
-import { getArticleByIdAdmin, upsertArticle } from "@/lib/articles.functions";
+import {
+  getArticleByIdAdmin,
+  listAllArticlesAdmin,
+  upsertArticle,
+} from "@/lib/articles.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/$id")({
@@ -41,6 +46,31 @@ function AdminEditor() {
   const [status, setStatus] = useState<"draft" | "published">("draft");
   const [saving, setSaving] = useState(false);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [parentId, setParentId] = useState<string>("");
+
+  const listAll = useServerFn(listAllArticlesAdmin);
+  const { data: allArticles = [] } = useQuery({
+    queryKey: ["admin-articles"],
+    queryFn: () => listAll(),
+  });
+
+  // Prevent choosing self or a descendant as parent
+  const invalidParents = useMemo(() => {
+    const set = new Set<string>();
+    if (isNew) return set;
+    set.add(id);
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop()!;
+      for (const a of allArticles as { id: string; parent_id: string | null }[]) {
+        if (a.parent_id === cur && !set.has(a.id)) {
+          set.add(a.id);
+          stack.push(a.id);
+        }
+      }
+    }
+    return set;
+  }, [allArticles, id, isNew]);
 
   useEffect(() => {
     if (isNew) return;
@@ -61,6 +91,7 @@ function AdminEditor() {
       setContentText(r.content_text ?? "");
       setStatus(r.status);
       setSlugTouched(true);
+      setParentId((r as { parent_id?: string | null }).parent_id ?? "");
     });
   }, [id, isNew, getOne]);
 
@@ -83,6 +114,7 @@ function AdminEditor() {
           content,
           content_text: contentText,
           status: next,
+          parent_id: parentId || null,
         },
       });
       setStatus(next);
@@ -149,6 +181,23 @@ function AdminEditor() {
           <Label>URL da capa</Label>
           <Input value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} />
         </div>
+        <div>
+          <Label>Página pai</Label>
+          <select
+            className="w-full h-10 px-3 rounded-md border bg-background text-sm"
+            value={parentId}
+            onChange={(e) => setParentId(e.target.value)}
+          >
+            <option value="">— Sem pai (raiz) —</option>
+            {(allArticles as { id: string; title: string; parent_id: string | null }[])
+              .filter((a) => !invalidParents.has(a.id))
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {indentTitle(a.id, allArticles as { id: string; parent_id: string | null; title: string }[])}
+                </option>
+              ))}
+          </select>
+        </div>
         <div className="md:col-span-2">
           <Label>Resumo</Label>
           <Textarea
@@ -172,4 +221,20 @@ function AdminEditor() {
       <div className="text-xs text-muted-foreground">Status atual: {status}</div>
     </main>
   );
+}
+
+function indentTitle(
+  id: string,
+  all: { id: string; parent_id: string | null; title: string }[],
+): string {
+  const byId = new Map(all.map((a) => [a.id, a]));
+  let depth = 0;
+  let cur = byId.get(id);
+  const title = cur?.title ?? "";
+  while (cur?.parent_id) {
+    depth += 1;
+    cur = byId.get(cur.parent_id);
+    if (depth > 20) break;
+  }
+  return `${"— ".repeat(depth)}${title}`;
 }
