@@ -498,10 +498,10 @@ export function RichEditor({ value, onChange }: Props) {
       {editor.isActive("image") && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
           <span className="text-muted-foreground">Imagem:</span>
-          <button type="button" onClick={() => setImageAlign("left")} className={btn(false)} title="Esquerda"><AlignLeft className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setImageAlign("center")} className={btn(false)} title="Centro"><AlignCenter className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setImageAlign("right")} className={btn(false)} title="Direita"><AlignRight className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setImageAlign(null)} className={btn(false)} title="Padrão"><Eraser className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign("left")} className={btn(false)} title="Esquerda"><AlignLeft className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign("center")} className={btn(false)} title="Centro"><AlignCenter className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign("right")} className={btn(false)} title="Direita"><AlignRight className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setImageAlign(null)} className={btn(false)} title="Padrão"><Eraser className="h-4 w-4" /></button>
         </div>
       )}
       {editor.isActive("codeBlock") && (
