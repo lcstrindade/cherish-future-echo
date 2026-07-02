@@ -128,11 +128,48 @@ ensure_node20() {
   fi
   run "Baixando setup NodeSource 20.x" bash -c 'curl -fsSL https://deb.nodesource.com/setup_20.x | bash -'
   apt_install nodejs
+
+  if command -v node >/dev/null; then
+    local installed_v; installed_v="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
+    if [ "$installed_v" -ge 20 ]; then
+      ok "Node.js $(node -v) instalado"
+      return
+    fi
+  fi
+
+  warn "O apt instalou Node.js antigo ou manteve a versão anterior — instalando Node.js 20 via binário oficial"
+  install_node20_binary
+  local final_v; final_v="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
+  [ "$final_v" -ge 20 ] || die "Não foi possível instalar Node.js 20. Versão atual: $(node -v 2>/dev/null || echo ausente)"
   ok "Node.js $(node -v) instalado"
+}
+
+install_node20_binary() {
+  local node_version="${NODE_VERSION:-20.19.5}" arch node_dir tarball url
+  case "$(uname -m)" in
+    x86_64|amd64) arch="x64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    armv7l) arch="armv7l" ;;
+    *) die "Arquitetura não suportada para instalação automática do Node.js: $(uname -m)" ;;
+  esac
+
+  command -v xz >/dev/null || apt_install xz-utils
+  node_dir="/usr/local/lib/node-v${node_version}-linux-${arch}"
+  tarball="/tmp/node-v${node_version}-linux-${arch}.tar.xz"
+  url="https://nodejs.org/dist/v${node_version}/node-v${node_version}-linux-${arch}.tar.xz"
+
+  run "Baixando Node.js ${node_version} (${arch})" curl -fsSL "$url" -o "$tarball"
+  rm -rf "$node_dir"
+  run "Extraindo Node.js ${node_version}" tar -xJf "$tarball" -C /usr/local/lib
+  ln -sfn "$node_dir/bin/node" /usr/local/bin/node
+  ln -sfn "$node_dir/bin/npm" /usr/local/bin/npm
+  ln -sfn "$node_dir/bin/npx" /usr/local/bin/npx
+  [ -x "$node_dir/bin/corepack" ] && ln -sfn "$node_dir/bin/corepack" /usr/local/bin/corepack
 }
 
 ensure_bun() {
   if command -v bun >/dev/null; then ok "Bun $(bun -v) já instalado"; return; fi
+  command -v unzip >/dev/null || apt_install unzip
   step "Instalando Bun (runtime JS)"
   run "Baixando bun" bash -c 'curl -fsSL https://bun.sh/install | bash'
   export PATH="$HOME/.bun/bin:$PATH"
@@ -148,6 +185,8 @@ ensure_deps() {
   command -v openssl >/dev/null || pkgs+=(openssl)
   command -v ss      >/dev/null || pkgs+=(iproute2)
   command -v curl    >/dev/null || pkgs+=(curl)
+  command -v unzip   >/dev/null || pkgs+=(unzip)
+  command -v xz      >/dev/null || pkgs+=(xz-utils)
   command -v ca-certificates >/dev/null 2>&1 || pkgs+=(ca-certificates)
   if [ ${#pkgs[@]} -gt 0 ]; then
     warn "Faltando: ${pkgs[*]} — instalando"
