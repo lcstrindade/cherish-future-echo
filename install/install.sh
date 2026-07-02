@@ -446,6 +446,11 @@ print_service_diagnostics() {
   warn "Teste curl detalhado da healthcheck:"
   curl -v --noproxy '*' --max-time 8 "http://127.0.0.1:${PORT}/api/public/health" -o /tmp/bivvo-health-body.txt 2>&1 || true
   [ -s /tmp/bivvo-health-body.txt ] && { echo "--- resposta"; cat /tmp/bivvo-health-body.txt; echo; }
+
+  echo
+  warn "Teste curl detalhado da página /docs:"
+  curl -v --noproxy '*' --max-time 8 "http://127.0.0.1:${PORT}/docs" -o /tmp/bivvo-docs-body.txt 2>&1 || true
+  [ -s /tmp/bivvo-docs-body.txt ] && { echo "--- resposta"; cat /tmp/bivvo-docs-body.txt; echo; }
 }
 
 wait_for_app() {
@@ -468,21 +473,39 @@ wait_for_app() {
       fi
       return 0
     fi
+
+    if [ "$code" = "404" ]; then
+      docs_code="$(curl -fsS --noproxy '*' -o /tmp/bivvo-docs-health.html -w "%{http_code}" --max-time 8 "$docs_url" 2>/tmp/bivvo-docs-curl.err || true)"
+      if [[ "$docs_code" =~ ^(2|3)[0-9][0-9]$ ]]; then
+        warn "A rota /api/public/health não existe neste build, mas a aplicação respondeu em /docs (HTTP $docs_code)."
+        ok "Aplicação local online em http://127.0.0.1:${PORT}/docs"
+        return 0
+      fi
+    fi
     sleep 1
   done
 
-  err "A aplicação não respondeu em $health_url"
+  err "A aplicação não respondeu com sucesso em $health_url nem em $docs_url"
   print_service_diagnostics
   return 1
 }
 
 verify_nginx_route() {
   section "Verificando rota local do Nginx"
-  local url="http://127.0.0.1/api/public/health" code
+  local url="http://127.0.0.1/api/public/health" docs_url="http://127.0.0.1/docs" code docs_code
   code="$(curl -fsS -o /tmp/bivvo-nginx-health.html -w "%{http_code}" --max-time 3 -H "Host: $DOMAIN" "$url" 2>/dev/null || true)"
   if [[ "$code" =~ ^(2|3)[0-9][0-9]$ ]]; then
     ok "Nginx encaminhou $DOMAIN para a aplicação (HTTP $code)"
     return 0
+  fi
+
+  if [ "$code" = "404" ]; then
+    docs_code="$(curl -fsS -o /tmp/bivvo-nginx-docs.html -w "%{http_code}" --max-time 8 -H "Host: $DOMAIN" "$docs_url" 2>/dev/null || true)"
+    if [[ "$docs_code" =~ ^(2|3)[0-9][0-9]$ ]]; then
+      warn "Healthcheck dedicada não encontrada via Nginx, mas /docs respondeu (HTTP $docs_code)."
+      ok "Nginx encaminhou $DOMAIN para a aplicação"
+      return 0
+    fi
   fi
 
   warn "Nginx não retornou sucesso para $DOMAIN ainda (HTTP ${code:-sem resposta})"
