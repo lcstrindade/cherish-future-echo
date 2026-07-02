@@ -39,9 +39,10 @@ O próprio instalador:
   `ss -tln` quanto todos os `proxy_pass 127.0.0.1:PORT` já configurados
   em `/etc/nginx` — não colide com outros projetos hospedados na mesma
   VPS.
-- Coleta interativamente: domínio, usuário do sistema, credenciais do
-  Supabase (URL, anon key, service_role), usuário/senha do admin e
-  `LOVABLE_API_KEY` (opcional, para embeddings).
+- Coleta interativamente: domínio, **usuário do sistema** (o usuário
+  Linux que roda o serviço — padrão `www-data`, **nunca root**),
+  credenciais do Supabase (URL, anon key, service_role) e
+  usuário/senha do admin do painel.
 - Gera `.env` com `chmod 600` e `SESSION_SECRET` aleatório
   (`openssl rand -hex 32`).
 - Faz `bun install` + build com `NITRO_PRESET=node-server`.
