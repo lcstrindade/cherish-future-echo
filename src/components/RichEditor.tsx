@@ -255,6 +255,20 @@ export function RichEditor({ value, onChange }: Props) {
         />
       </div>
       <EditorContent editor={editor} />
+      {editor.isActive("codeBlock") && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs border-t bg-muted/40">
+          <span className="text-muted-foreground">Linguagem:</span>
+          <select
+            className="h-7 px-2 rounded border bg-background text-xs"
+            value={editor.getAttributes("codeBlock").language || "plaintext"}
+            onChange={(e) => editor.chain().focus().updateAttributes("codeBlock", { language: e.target.value }).run()}
+          >
+            {["plaintext","javascript","typescript","html","css","json","bash","python","sql","markdown","go","rust","java","php","xml"].map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground border-t">
         <span>{uploading ? "Enviando imagem..." : "Dica: arraste imagens direto para o editor"}</span>
         <span>{editor.storage.characterCount?.words?.() ?? 0} palavras · {editor.storage.characterCount?.characters?.() ?? 0} caracteres</span>
