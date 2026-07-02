@@ -23,7 +23,7 @@ export function SiteNav() {
             href="https://app.bivvo.com.br"
             className="px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90"
           >
-            Fazer login
+            Acessar Bivvo
           </a>
         </nav>
       </div>
