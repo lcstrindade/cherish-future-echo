@@ -89,12 +89,15 @@ if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.j
   if [ -d "$APP_DIR/.git" ]; then
     run "Atualizando repositório existente em $APP_DIR" \
       bash -c "
-        cp -a '$APP_DIR/.env' '$APP_DIR/.env.preinstall.bak' 2>/dev/null || true
-        git -C '$APP_DIR' fetch --all --prune &&
-        git -C '$APP_DIR' checkout '$REPO_BRANCH' -- . 2>/dev/null || true
-        git -C '$APP_DIR' checkout '$REPO_BRANCH' &&
-        git -C '$APP_DIR' reset --hard 'origin/$REPO_BRANCH' &&
-        { [ -f '$APP_DIR/.env.preinstall.bak' ] && mv -f '$APP_DIR/.env.preinstall.bak' '$APP_DIR/.env' || true; }
+        set -e
+        env_bak=\"/tmp/bivvo-docs-env-bootstrap-\$\$.bak\"
+        [ -f '$APP_DIR/.env' ] && cp -a '$APP_DIR/.env' \"\$env_bak\" || true
+        git -C '$APP_DIR' remote set-url origin '$REPO_URL' || true
+        git -C '$APP_DIR' fetch origin '$REPO_BRANCH' --prune
+        git -C '$APP_DIR' checkout -f -B '$REPO_BRANCH' 'origin/$REPO_BRANCH'
+        git -C '$APP_DIR' reset --hard 'origin/$REPO_BRANCH'
+        git -C '$APP_DIR' clean -fd -e .env
+        { [ -f \"\$env_bak\" ] && mv -f \"\$env_bak\" '$APP_DIR/.env' || true; }
       "
   else
     mkdir -p "$(dirname "$APP_DIR")"
@@ -277,6 +280,18 @@ pick_install() {
   list_installs || return 1
   local sel; ask sel "Slug do projeto"
   load_state "$sel"
+}
+
+sync_repo_to_origin() {
+  section "Sincronizando código com GitHub"
+  local env_bak="/tmp/${PROJECT:-bivvo-docs}-env-update-$$.bak"
+  [ -f "$APP_DIR/.env" ] && cp -a "$APP_DIR/.env" "$env_bak" || true
+  run "git remote origin" git -C "$APP_DIR" remote set-url origin "$REPO_URL"
+  run "git fetch origin/$REPO_BRANCH" git -C "$APP_DIR" fetch origin "$REPO_BRANCH" --prune
+  run "git checkout/reset $REPO_BRANCH" git -C "$APP_DIR" checkout -f -B "$REPO_BRANCH" "origin/$REPO_BRANCH"
+  run "git reset hard origin/$REPO_BRANCH" git -C "$APP_DIR" reset --hard "origin/$REPO_BRANCH"
+  run "Limpando arquivos gerados locais" git -C "$APP_DIR" clean -fd -e .env
+  [ -f "$env_bak" ] && mv -f "$env_bak" "$APP_DIR/.env" || true
 }
 
 validate_install_inputs() {
@@ -559,12 +574,7 @@ do_update() {
   ensure_deps
   ensure_app_user
   ensure_runtime_env
-  section "Puxando código novo de $REPO_URL ($REPO_BRANCH)"
-  [ -f "$APP_DIR/.env" ] && cp -a "$APP_DIR/.env" "$APP_DIR/.env.preinstall.bak" || true
-  run "git fetch"       git -C "$APP_DIR" fetch --all --prune
-  run "git checkout"    git -C "$APP_DIR" checkout "$REPO_BRANCH"
-  run "git reset hard"  git -C "$APP_DIR" reset --hard "origin/$REPO_BRANCH"
-  [ -f "$APP_DIR/.env.preinstall.bak" ] && mv -f "$APP_DIR/.env.preinstall.bak" "$APP_DIR/.env" || true
+  sync_repo_to_origin
   build_app
   check_runtime_permissions
   install_service
