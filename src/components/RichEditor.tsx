@@ -1,6 +1,5 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { lowlight } from "@/lib/lowlight";
 import Link from "@tiptap/extension-link";
@@ -21,6 +20,9 @@ import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import Typography from "@tiptap/extension-typography";
 import CharacterCount from "@tiptap/extension-character-count";
+import { Callout, DetailsBlock, VideoEmbed, AlignableImage } from "@/lib/tiptap-extensions";
+import { useQuery } from "@tanstack/react-query";
+import { listPublishedArticles } from "@/lib/articles.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import {
@@ -29,7 +31,8 @@ import {
   Youtube as YoutubeIcon, Undo, Redo, Code2, Underline as UnderlineIcon,
   Subscript as SubIcon, Superscript as SupIcon, AlignLeft, AlignCenter,
   AlignRight, AlignJustify, ListChecks, Table as TableIcon, Highlighter,
-  Palette, Rows, Columns, Trash2, Eraser,
+  Palette, Rows, Columns, Trash2, Eraser, Info, AlertTriangle, CheckCircle2,
+  XCircle, Lightbulb, ChevronDown, Video, FileVideo, BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -60,7 +63,7 @@ export function RichEditor({ value, onChange }: Props) {
     extensions: [
       StarterKit.configure({ codeBlock: false }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
-      Image.configure({ inline: false, allowBase64: false }),
+      AlignableImage.configure({ inline: false, allowBase64: false }),
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: "Escreva seu artigo..." }),
       Youtube.configure({ width: 640, height: 360, nocookie: true }),
@@ -79,6 +82,9 @@ export function RichEditor({ value, onChange }: Props) {
       TaskList,
       TaskItem.configure({ nested: true }),
       CharacterCount,
+      Callout,
+      DetailsBlock,
+      VideoEmbed,
     ],
     content: value || "",
     onUpdate: ({ editor }) => onChange(editor.getJSON(), editor.getText()),
