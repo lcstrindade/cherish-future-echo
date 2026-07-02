@@ -7,10 +7,11 @@ Type=simple
 User=__USER__
 WorkingDirectory=__APPDIR__
 EnvironmentFile=__APPDIR__/.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
 Environment=PORT=__PORT__
 Environment=HOST=127.0.0.1
-ExecStart=/usr/bin/node __APPDIR__/.output/server/index.mjs
+ExecStart=__NODE_BIN__ __APPDIR__/.output/server/index.mjs
 Restart=always
 RestartSec=5
 StandardOutput=append:/var/log/__PROJECT__.log
