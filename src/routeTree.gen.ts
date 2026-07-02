@@ -17,6 +17,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as AdminIdRouteImport } from './routes/admin.$id'
+import { Route as ApiPublicHealthRouteImport } from './routes/api.public.health'
 
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
@@ -58,6 +59,11 @@ const AdminIdRoute = AdminIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AdminRoute,
 } as any)
+const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
+  id: '/api/public/health',
+  path: '/api/public/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/docs/$slug': typeof DocsSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/docs/': typeof DocsIndexRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/docs/$slug': typeof DocsSlugRoute
   '/admin': typeof AdminIndexRoute
   '/docs': typeof DocsIndexRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/docs/$slug': typeof DocsSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/docs/': typeof DocsIndexRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -99,8 +108,16 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/admin/'
     | '/docs/'
+    | '/api/public/health'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/admin/$id' | '/docs/$slug' | '/admin' | '/docs'
+  to:
+    | '/'
+    | '/auth'
+    | '/admin/$id'
+    | '/docs/$slug'
+    | '/admin'
+    | '/docs'
+    | '/api/public/health'
   id:
     | '__root__'
     | '/'
@@ -111,6 +128,7 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/admin/'
     | '/docs/'
+    | '/api/public/health'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,6 +136,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   AuthRoute: typeof AuthRoute
   DocsRoute: typeof DocsRouteWithChildren
+  ApiPublicHealthRoute: typeof ApiPublicHealthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -178,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIdRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/api/public/health': {
+      id: '/api/public/health'
+      path: '/api/public/health'
+      fullPath: '/api/public/health'
+      preLoaderRoute: typeof ApiPublicHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -210,6 +236,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   AuthRoute: AuthRoute,
   DocsRoute: DocsRouteWithChildren,
+  ApiPublicHealthRoute: ApiPublicHealthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
