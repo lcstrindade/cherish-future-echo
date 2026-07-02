@@ -158,6 +158,17 @@ export function RichEditor({ value, onChange }: Props) {
     immediatelyRender: false,
   });
 
+  // Sync external value into the editor (e.g. when article loads async).
+  useEffect(() => {
+    if (!editor) return;
+    const incoming = value ?? "";
+    if (!incoming) return;
+    const current = JSON.stringify(editor.getJSON());
+    const next = typeof incoming === "string" ? incoming : JSON.stringify(incoming);
+    if (current === next) return;
+    editor.commands.setContent(incoming as never, { emitUpdate: false });
+  }, [value, editor]);
+
   async function handleImageUpload(file: File, pos?: number) {
     if (!editor) return;
     setUploading(true);
