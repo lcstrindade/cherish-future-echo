@@ -106,6 +106,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "Central de Ajuda Bivvo" },
+      { name: "description", content: "Documentação oficial do Bivvo com tutoriais, guias, API, integrações, automações, FAQ e soluções para utilizar a plataforma com eficiência." },
+      { property: "og:description", content: "Documentação oficial do Bivvo com tutoriais, guias, API, integrações, automações, FAQ e soluções para utilizar a plataforma com eficiência." },
+      { name: "twitter:description", content: "Documentação oficial do Bivvo com tutoriais, guias, API, integrações, automações, FAQ e soluções para utilizar a plataforma com eficiência." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/763bf3df-589e-4fca-92a1-608bbc6ad459/id-preview-b3e09a5b--e19b8c3d-4e3c-4693-b890-3597a2fae819.lovable.app-1782967654320.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/763bf3df-589e-4fca-92a1-608bbc6ad459/id-preview-b3e09a5b--e19b8c3d-4e3c-4693-b890-3597a2fae819.lovable.app-1782967654320.png" },
     ],
     links: [
       {
