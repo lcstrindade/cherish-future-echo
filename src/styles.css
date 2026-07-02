@@ -121,3 +121,52 @@
 #lovable-badge {
   display: none !important;
 }
+
+/* Tiptap editor enhancements (tables, task lists, callouts) */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.75rem 0;
+  overflow: hidden;
+}
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+  vertical-align: top;
+  position: relative;
+}
+.ProseMirror table th {
+  background: var(--color-muted);
+  font-weight: 600;
+  text-align: left;
+}
+.ProseMirror table .selectedCell:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.15);
+  pointer-events: none;
+}
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.ProseMirror ul[data-type="taskList"] li > label {
+  margin-top: 0.25rem;
+  user-select: none;
+}
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+.ProseMirror mark {
+  background: #fef08a;
+  padding: 0 2px;
+  border-radius: 2px;
+}
