@@ -324,7 +324,14 @@ export function RichEditor({ value, onChange }: Props) {
 
   return (
     <div ref={wrapperRef} className="border rounded-md bg-background relative">
-      <div className="flex flex-wrap gap-1 border-b p-2 sticky top-0 bg-background z-10">
+      <div
+        className="flex flex-wrap gap-1 border-b p-2 sticky top-0 bg-background z-10"
+        onMouseDown={(e) => {
+          // Keep editor selection when clicking toolbar buttons.
+          const t = e.target as HTMLElement;
+          if (t.closest("button")) e.preventDefault();
+        }}
+      >
         <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive("bold"))}><Bold className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive("italic"))}><Italic className="h-4 w-4" /></button>
         <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={btn(editor.isActive("underline"))} title="Sublinhado"><UnderlineIcon className="h-4 w-4" /></button>
