@@ -341,6 +341,12 @@ collect_inputs() {
   PORT="$(find_free_port 3000 3999)"
   ok "Porta local livre escolhida: $PORT"
 
+  # Ajusta APP_DIR para refletir o slug do projeto quando o usuário não
+  # forneceu explicitamente um diretório via env var.
+  if [ -z "${BIVVO_APP_DIR:-}" ]; then
+    APP_DIR="/opt/$PROJECT"
+  fi
+
   echo
   section "Resumo"
   printf "  Projeto : %s\n  Domínio : %s\n  Porta   : %s\n  Dir     : %s\n  Usuário : %s\n" \
@@ -589,6 +595,7 @@ do_install() {
   ensure_deps
   collect_inputs
   ensure_app_user
+  ensure_repo_clone
   write_env
   save_state
   build_app
