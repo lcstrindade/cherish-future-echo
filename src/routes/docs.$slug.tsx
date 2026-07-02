@@ -1,7 +1,8 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { toast } from "sonner";
 import {
   getArticleBySlug,
   listPublishedArticles,
@@ -30,9 +31,31 @@ export const Route = createFileRoute("/docs/$slug")({
           },
           { property: "og:title", content: loaderData.article.title },
           { property: "og:description", content: loaderData.article.excerpt ?? "" },
+          { property: "og:type", content: "article" },
           ...(loaderData.article.cover_image_url
             ? [{ property: "og:image", content: loaderData.article.cover_image_url }]
             : []),
+        ]
+      : [],
+    scripts: loaderData?.article
+      ? [
+          {
+            type: "application/ld+json",
+            children: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "TechArticle",
+              headline: loaderData.article.title,
+              description: loaderData.article.excerpt ?? undefined,
+              image: loaderData.article.cover_image_url ?? undefined,
+              datePublished: loaderData.article.published_at ?? undefined,
+              dateModified:
+                loaderData.article.updated_at ??
+                loaderData.article.published_at ??
+                undefined,
+              author: { "@type": "Organization", name: "Bivvo" },
+              publisher: { "@type": "Organization", name: "Bivvo" },
+            }),
+          },
         ]
       : [],
   }),
@@ -53,6 +76,40 @@ export const Route = createFileRoute("/docs/$slug")({
 function ArticlePage() {
   const { article } = Route.useLoaderData();
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const readingMinutes = useMemo(() => {
+    const words = extractText(article.content).trim().split(/\s+/).filter(Boolean).length;
+    return Math.max(1, Math.round(words / 200));
+  }, [article.content]);
+
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+    const attach = () => {
+      container.querySelectorAll<HTMLHeadingElement>("h2, h3").forEach((h) => {
+        if (!h.id) return;
+        if (h.querySelector(".heading-anchor")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className =
+          "heading-anchor opacity-0 group-hover:opacity-100 ml-2 text-muted-foreground hover:text-foreground transition-opacity text-sm align-middle";
+        btn.setAttribute("aria-label", "Copiar link da seção");
+        btn.textContent = "#";
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const url = `${window.location.origin}${window.location.pathname}#${h.id}`;
+          navigator.clipboard.writeText(url).then(() => toast.success("Link copiado"));
+        });
+        h.classList.add("group");
+        h.style.scrollMarginTop = "6rem";
+        h.appendChild(btn);
+      });
+    };
+    attach();
+    const mo = new MutationObserver(attach);
+    mo.observe(container, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [article.slug]);
+
   const { data: all = [] } = useSuspenseQuery({
     queryKey: ["docs-sidebar"],
     queryFn: () => listPublishedArticles(),
@@ -75,13 +132,19 @@ function ArticlePage() {
         {article.excerpt && (
           <p className="text-lg text-muted-foreground mb-8">{article.excerpt}</p>
         )}
-        <div className="text-xs text-muted-foreground mb-8">
-          Atualizado em{" "}
-          {new Date(article.updated_at ?? article.published_at ?? Date.now()).toLocaleDateString("pt-BR", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })}
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mb-8">
+          <span>
+            Atualizado em{" "}
+            {new Date(article.updated_at ?? article.published_at ?? Date.now()).toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
+          </span>
+          <span aria-hidden>·</span>
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3 w-3" /> {readingMinutes} min de leitura
+          </span>
         </div>
         {article.cover_image_url && (
           <img
@@ -158,4 +221,18 @@ function orderArticles(all: ArticleListItem[]): ArticleListItem[] {
   const out: ArticleListItem[] = [];
   for (const [, subs] of map) for (const [, items] of subs) for (const a of items) out.push(a);
   return out;
+}
+
+function extractText(node: unknown): string {
+  if (!node) return "";
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map(extractText).join(" ");
+  if (typeof node === "object") {
+    const n = node as Record<string, unknown>;
+    let s = "";
+    if (typeof n.text === "string") s += n.text + " ";
+    if (Array.isArray(n.content)) s += extractText(n.content);
+    return s;
+  }
+  return "";
 }
