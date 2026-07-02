@@ -76,8 +76,24 @@ confirm()    { local ans; read -rp "  $1 [y/N]: " ans || true; [[ "${ans:-n}" =~
 
 need_root() { [ "$(id -u)" -eq 0 ] || die "Rode como root (sudo)."; }
 
-# ---------- self-bootstrap (curl | sudo bash) ------------------------------
+# Quando o script vem por pipe (`curl ... | sudo bash`), o stdin é o próprio
+# código do instalador. Se tentarmos ler o menu desse mesmo stdin, o Bash
+# termina antes de mostrar as opções. Por isso, primeiro reexecutamos uma cópia
+# real em /tmp; só esse segundo processo troca o stdin para /dev/tty.
 _SRC="${BASH_SOURCE[0]:-}"
+if { [ -z "$_SRC" ] || [ ! -f "$_SRC" ]; } && [ "${BIVVO_INSTALL_FROM_FILE:-0}" != "1" ]; then
+  need_root
+  TMP_INSTALLER="/tmp/bivvo-docs-install.sh"
+  command -v curl >/dev/null || die "curl não encontrado. Use: apt-get install -y curl"
+  curl -fsSL "https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/${REPO_BRANCH}/install/install.sh" -o "$TMP_INSTALLER"
+  chmod 700 "$TMP_INSTALLER"
+  if [ -r /dev/tty ]; then
+    exec env BIVVO_INSTALL_FROM_FILE=1 bash "$TMP_INSTALLER" </dev/tty
+  fi
+  die "Terminal interativo não encontrado. Rode: curl -fsSL -o /tmp/bivvo-docs-install.sh https://raw.githubusercontent.com/lcstrindade/cherish-future-echo/${REPO_BRANCH}/install/install.sh && sudo bash /tmp/bivvo-docs-install.sh"
+fi
+
+# ---------- self-bootstrap (curl | sudo bash) ------------------------------
 if [ -z "$_SRC" ] || [ ! -f "$_SRC" ] || [ ! -f "$(dirname "$_SRC")/../package.json" ]; then
   banner
   section "Bootstrap"
