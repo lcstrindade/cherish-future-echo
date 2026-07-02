@@ -4,13 +4,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Plus, Pencil, Trash2, ChevronRight, ChevronUp, ChevronDown,
+  Plus, Pencil, Trash2, ChevronRight, ChevronUp, ChevronDown, Sparkles,
   IndentIncrease, IndentDecrease,
 } from "lucide-react";
 import {
   listAllArticlesAdmin,
   deleteArticle,
   reorderArticles,
+  backfillEmbeddings,
 } from "@/lib/articles.functions";
 import { toast } from "sonner";
 
@@ -32,6 +33,8 @@ function AdminList() {
   const list = useServerFn(listAllArticlesAdmin);
   const del = useServerFn(deleteArticle);
   const reorder = useServerFn(reorderArticles);
+  const backfill = useServerFn(backfillEmbeddings);
+  const [backfilling, setBackfilling] = useState(false);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-articles"],
@@ -117,11 +120,31 @@ function AdminList() {
     <main className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Artigos</h1>
-        <Button asChild>
-          <Link to="/admin/$id" params={{ id: "new" }}>
-            <Plus className="h-4 w-4 mr-2" /> Novo artigo
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={backfilling}
+            onClick={async () => {
+              setBackfilling(true);
+              try {
+                const r = await backfill();
+                toast.success(`Embeddings gerados: ${r.updated}/${r.total}`);
+              } catch (e) {
+                toast.error((e as Error).message);
+              } finally {
+                setBackfilling(false);
+              }
+            }}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {backfilling ? "Indexando..." : "Reindexar busca"}
+          </Button>
+          <Button asChild>
+            <Link to="/admin/$id" params={{ id: "new" }}>
+              <Plus className="h-4 w-4 mr-2" /> Novo artigo
+            </Link>
+          </Button>
+        </div>
       </div>
       {isLoading && <div className="text-muted-foreground">Carregando...</div>}
       <div className="border rounded-lg divide-y">
